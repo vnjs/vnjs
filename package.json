@@ -1,0 +1,27 @@
+{
+  "name": "vnjs",
+  "description": "Visual Novel Game Engine",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vnjs/vnjs.git"
+  },
+  "contributors": [
+    {
+      "name": "VN Author"
+    }
+  ],
+  "engines": {
+    "node": ">= 6.9.0"
+  },
+  "directories": {},
+  "dependencies": {
+    "nearley": "^2.7.14"
+  },
+  "devDependencies": {
+    "babel-preset-babili": "0.0.11",
+    "babel-preset-env": "^1.1.10",
+    "babelify": "^7.3.0"
+  }
+}
