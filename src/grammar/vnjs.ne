@@ -21,7 +21,9 @@
     'define':-1,
     'and':-1,
     'or':-1,
-    'goto':-1
+    'goto':-1,
+    'preserve':-1,
+    'evaluate':-1
   };
 %}
 
@@ -53,10 +55,6 @@ vnjs -> baseStatements _ {% nth(0) %}
 
 
 @{%
-//  var ws = {literal: " "};
-//  var number = {test: function(n) {
-//      return n.constructor === Number;
-//  }};
   
   var isToken = function (tok) {
     return {
@@ -81,15 +79,16 @@ vnjs -> baseStatements _ {% nth(0) %}
   var COMMENT = isToken('c');
   
   var SEMICOLON = isSymbol(';');
-  var COLON =  isSymbol(':');
-  var PERIOD = isSymbol('.');
-  var COMMA =  isSymbol(',');
-  var OPENP =  isSymbol('(');
-  var CLOSEP = isSymbol(')');
-  var OPENB =  isSymbol('{');
-  var CLOSEB = isSymbol('}');
-  var ORSYM =  isSymbol('||');
-  var ANDSYM = isSymbol('&&');
+  var COLON =   isSymbol(':');
+  var PERIOD =  isSymbol('.');
+  var COMMA =   isSymbol(',');
+  var OPENP =   isSymbol('(');
+  var CLOSEP =  isSymbol(')');
+  var OPENB =   isSymbol('{');
+  var CLOSEB =  isSymbol('}');
+  var PERCENT = isSymbol('$');
+  var ORSYM =   isSymbol('||');
+  var ANDSYM =  isSymbol('&&');
   var LT =   isSymbol('<');
   var GT =   isSymbol('>');
   var LTE =  isSymbol('<=');
@@ -118,7 +117,11 @@ vnjs -> baseStatements _ {% nth(0) %}
   var DEFINE = isWord('define');
   var AND =    isWord('and');
   var OR =     isWord('or');
-  
+
+  var VAR =      isWord('var');
+  var PRESERVE = isWord('preserve');
+  var EVALUATE = isWord('evaluate');
+
   var EXPONENT = {
     test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
   };
@@ -395,9 +398,14 @@ ifstatement -> %IF _ expression _ block ( _ elseifblock ):* ( _ elseblock ):? {%
   }
 %}
 
-gotostatement -> %GOTO _ local_ident _ %SEMICOLON {%
+
+reservedOp -> %GOTO {% id %}
+            | %EVALUATE {% id %}
+            | %PRESERVE {% id %}
+
+langstatement -> reservedOp _ local_ident _ %SEMICOLON {%
   function(d, loc) {
-    return { loc:loc, f:'goto', l:d[2] }
+    return { loc:loc, f:d[0][1], l:d[2] }
   }
 %}
 
@@ -425,7 +433,7 @@ nestedStatement -> assignment {% nth(0) %}
                  | functionCall _ %SEMICOLON {% nth(0) %}
                  | nbFunctionCall _ %SEMICOLON {% nth(0) %}
                  | ifstatement {% nth(0) %}
-                 | gotostatement {% nth(0) %}
+                 | langstatement {% nth(0) %}
                  | comment {% nth(0) %}
 
 

@@ -34,7 +34,9 @@ function $(o) {
     'define':-1,
     'and':-1,
     'or':-1,
-    'goto':-1
+    'goto':-1,
+    'preserve':-1,
+    'evaluate':-1
   };
 
 
@@ -58,10 +60,6 @@ function $(o) {
   }
 
 
-//  var ws = {literal: " "};
-//  var number = {test: function(n) {
-//      return n.constructor === Number;
-//  }};
   
   var isToken = function (tok) {
     return {
@@ -86,15 +84,16 @@ function $(o) {
   var COMMENT = isToken('c');
   
   var SEMICOLON = isSymbol(';');
-  var COLON =  isSymbol(':');
-  var PERIOD = isSymbol('.');
-  var COMMA =  isSymbol(',');
-  var OPENP =  isSymbol('(');
-  var CLOSEP = isSymbol(')');
-  var OPENB =  isSymbol('{');
-  var CLOSEB = isSymbol('}');
-  var ORSYM =  isSymbol('||');
-  var ANDSYM = isSymbol('&&');
+  var COLON =   isSymbol(':');
+  var PERIOD =  isSymbol('.');
+  var COMMA =   isSymbol(',');
+  var OPENP =   isSymbol('(');
+  var CLOSEP =  isSymbol(')');
+  var OPENB =   isSymbol('{');
+  var CLOSEB =  isSymbol('}');
+  var PERCENT = isSymbol('$');
+  var ORSYM =   isSymbol('||');
+  var ANDSYM =  isSymbol('&&');
   var LT =   isSymbol('<');
   var GT =   isSymbol('>');
   var LTE =  isSymbol('<=');
@@ -123,7 +122,11 @@ function $(o) {
   var DEFINE = isWord('define');
   var AND =    isWord('and');
   var OR =     isWord('or');
-  
+
+  var VAR =      isWord('var');
+  var PRESERVE = isWord('preserve');
+  var EVALUATE = isWord('evaluate');
+
   var EXPONENT = {
     test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
   };
@@ -346,9 +349,12 @@ var grammar = {
           return { loc:loc, t:'IF', e:d[2], b:d[4], o:s }
         }
         },
-    {"name": "gotostatement", "symbols": [GOTO, "_", "local_ident", "_", SEMICOLON], "postprocess": 
+    {"name": "reservedOp", "symbols": [GOTO], "postprocess": id},
+    {"name": "reservedOp", "symbols": [EVALUATE], "postprocess": id},
+    {"name": "reservedOp", "symbols": [PRESERVE], "postprocess": id},
+    {"name": "langstatement", "symbols": ["reservedOp", "_", "local_ident", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'goto', l:d[2] }
+          return { loc:loc, f:d[0][1], l:d[2] }
         }
         },
     {"name": "importstatement", "symbols": [IMPORT, "__", "stringval", "_", SEMICOLON], "postprocess": 
@@ -370,7 +376,7 @@ var grammar = {
     {"name": "nestedStatement", "symbols": ["functionCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["nbFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["ifstatement"], "postprocess": nth(0)},
-    {"name": "nestedStatement", "symbols": ["gotostatement"], "postprocess": nth(0)},
+    {"name": "nestedStatement", "symbols": ["langstatement"], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["comment"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["letstatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["baseFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},

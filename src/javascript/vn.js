@@ -129,7 +129,7 @@ function gameLaunch(main_div) {
   };
   const vn_screen = VNScreen(display_canvas, config);
   vn_screen.preloadFonts();
-  
+
   // Load initial resources,
   let image_resources = [];
   image_resources.push( { id:'test_char', url:'Assets/characters/test_character_wilma.png' },

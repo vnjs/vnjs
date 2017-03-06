@@ -296,9 +296,10 @@ function SceneComposer() {
         else if (fun === 'call') {  // Function call
           exec_block.stmts.push( [ calcAddress(parser, stmt.loc), 'nbcall', prepareFunction(stmt) ] );
         }
-        else if (fun === 'goto') {
+        // Language operations,
+        else if (fun === 'goto' || fun === 'preserve' || fun === 'evaluate') {
           const ident = stmt.l;
-          exec_block.stmts.push( [ calcAddress(parser, stmt.loc), 'goto', ident ] );
+          exec_block.stmts.push( [ calcAddress(parser, stmt.loc), fun, ident ] );
         }
         else {
           console.error("PENDING statement: ", stmt);
