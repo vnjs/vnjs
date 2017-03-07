@@ -80,7 +80,17 @@ function calculateScriptPosition(code_string, offset) {
   return { line, column };
 }
 
-
+// Generates a base64 encoded sourceMappingURL,
+function toInlineBase64Inline(generator, nl_separator) {
+  if (nl_separator === void 0) {
+    nl_separator = '\n';
+  }
+  const encoding =
+      ( nl_separator +
+        "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
+        encode64(generator.toString()) );
+  return encoding;
+}
 
 
 // Evaluates and composes a scene script.
@@ -272,10 +282,7 @@ function SceneComposer() {
             original: pos,
             generated: EVAL_GEN_POS
           });
-          const b64_enc_sm = encode64(generator.toString());
-          gen_function_source +=
-              "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-              b64_enc_sm;
+          gen_function_source += toInlineBase64Inline(generator, '\n');
         }
         return [ 'function', gen_function_source ];
       }
@@ -296,6 +303,48 @@ function SceneComposer() {
       return out;
     }
 
+    function convertInlineCodeString(tok) {
+      // The function string wrapped as a single expression,
+      const function_string = '(' + tok.v + ')';
+      // The starting location,
+      let start_loc = tok.loc;
+      let pos = calculateScriptPosition(code_source, calcAddress(start_loc));
+      // PENDING: We could tokenize function_string here and remove comments or
+      //   do other minification/obfuscation.
+      
+      // Do a simple line by line source map,
+      // Count the number of lines,
+      let line_count = 1;
+      let i;
+      for(i = 0; i < function_string.length; ++i){
+        if(function_string[i] === '\n') {
+          ++line_count;
+        }
+      }
+
+      // Map all lines,
+      let gen = { line: 1, column: 0 };
+      const generator = new sourceMap.SourceMapGenerator({});
+      for (i = 0; i < line_count; ++i) {
+        generator.addMapping({
+          source: filename,
+          original: pos,
+          generated: gen
+        });
+        pos.line += 1;
+        pos.column = 0;
+        gen.line += 1;
+      }
+
+      // Windows or Unix line separator in the source code?
+      let nl_separator = '\n';
+      if (function_string.indexOf("\r\n") >= 0) {
+        nl_separator = '\r\n';
+      }
+      // Encode and inline the source map,
+      return function_string + toInlineBase64Inline(generator, nl_separator);
+    }
+    
     function prepareFunction(func) {
       const ident = func.l;
       const args = toArgs(func.r);
@@ -392,7 +441,9 @@ function SceneComposer() {
           e = prepareFunction(expression);
         }
         else if (expression.t === 'INLINE') {
-          e = [ 'inline', expression.v ];
+          // Convert to inline code string.
+          const inline_source = convertInlineCodeString(expression);
+          e = [ 'inline', inline_source ];
         }
         else {
           e = toJSValue(expression);
