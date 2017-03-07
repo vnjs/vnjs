@@ -17,7 +17,8 @@
   },
   "directories": {},
   "dependencies": {
-    "nearley": "^2.7.14"
+    "nearley": "^2.7.14",
+    "source-map": "^0.5.6"
   },
   "devDependencies": {
     "babel-preset-babili": "0.0.11",

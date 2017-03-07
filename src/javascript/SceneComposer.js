@@ -3,8 +3,22 @@
 // PENDING: ES6 imports for this?
 const grammar = require("./vnjsgrammar.js");
 const nearley = require("nearley");
+const sourceMap = require("source-map");
 
 const Tokenizer = require('./vnjstokenizer').Tokenizer;
+
+
+// HACK: Ugly eval hack to provide a node.js and browser 'encode64'
+//   function without causing browserify to shim a Buffer implementation in
+//   the generated package.
+const encode64 = eval(
+"( function() {" +
+"  if (typeof window !== 'undefined' && window.btoa !== void 0) return window.btoa;" +
+"  else return function(ascii) { return new Buffer(ascii).toString('base64') }" +
+"})")();
+
+const INCLUDE_SOURCEMAP_FOR_FUNCTIONS = true;
+const EVAL_GEN_POS = { line: 1, column: 0 };
 
 
 
@@ -48,7 +62,7 @@ function hashFnv32a(str, asString, seed) {
 // Calculates the line and column of the given offset,
 function calculateScriptPosition(code_string, offset) {
   let line = 1;
-  let col = 0;
+  let column = 0;
   let found_col = false;
   while (offset >= 0) {
     const ch = code_string.charAt(offset);
@@ -59,16 +73,13 @@ function calculateScriptPosition(code_string, offset) {
     }
     if (!found_col) {
       if (ch !== '\r') {
-        ++col;
+        ++column;
       }
     }
   }
-  return { line, col };
+  return { line, column };
 }
 
-function calcAddress(parser, loc) {
-  return parser.vn_tokens[loc][2];
-}
 
 
 
@@ -77,6 +88,7 @@ function calcAddress(parser, loc) {
 function SceneComposer() {
 
 
+  // Tokenize and parse the file using Nearley
   function parseScene(code_string, filename) {
 
     // Tokenize the string,
@@ -89,9 +101,7 @@ function SceneComposer() {
 //      recons += tokens[m][1];
 //    }
 //    assert(recons === code_string);
-    
-    
-    
+
     // Create a Parser object from our grammar.
     const p = new nearley.Parser(grammar.ParserRules, grammar.ParserStart);
     // HACK: Attach vn_tokens to the nearley parser object,
@@ -104,13 +114,12 @@ function SceneComposer() {
       let position;
       if (coffset) {
         position = calculateScriptPosition(code_string, tokens[coffset][2]);
-//        console.error("Parse error at line:", position.line, " column:", position.col);
 
         let error_str = "Parse error; ";
         if (!filename) {
           filename = '[EVAL]';
         }
-        error_str += filename + ":" + position.line + ":" + position.col;
+        error_str += filename + ":" + position.line + ":" + position.column;
 
         throw Error(error_str);
 
@@ -125,352 +134,385 @@ function SceneComposer() {
   }
 
 
-  
-  function expr(p, stats) {
-    // NOTE: Duck typing,
-    if (typeof p === 'string') {
-      // Local ident
-      stats.ids.push(p);
-      return "p.getV('" + p + "')";
+
+  // Expose all these functions to parser and code_source,
+  function CodeParser(filename, parser, code_source) {
+    
+    const tokens = parser.vn_tokens;
+    
+    function calcAddress(loc) {
+      return tokens[loc][2];
     }
-    // If token,
-    else if (p.t) {
-      const { t, v } = p;
-      switch (t) {
-        case 'NUMBER':
-          return v;
-        case 'BOOLEAN':
-          return v.toString();
-        case 'STRING':
-          return v;
-        case 'NULL':
-          return "null";
-        case '(':
-          return '( ' + expr(v, stats) + ' )';
-        default:
-          throw Error("Unknown token:" + t);
+
+    function expr(p, stats) {
+      // NOTE: Duck typing,
+      if (typeof p === 'string') {
+        // Local ident
+        stats.ids.push(p);
+        return "p.getV('" + p + "')";
+      }
+      // If token,
+      else if (p.t) {
+        const { t, v } = p;
+        switch (t) {
+          case 'NUMBER':
+            return v;
+          case 'BOOLEAN':
+            return v.toString();
+          case 'STRING':
+            return v;
+          case 'NULL':
+            return "null";
+          case '(':
+            return '( ' + expr(v, stats) + ' )';
+          default:
+            throw Error("Unknown token:" + t);
+        }
+      }
+      // If function,
+      else {
+        const { f, l, r } = p;
+        let s = expr(l, stats);
+
+        switch (f) {
+
+          case '+':
+            s += " + ";
+            break;
+          case '-':
+            s += " - ";
+            break;
+          case '*':
+            s += " * ";
+            break;
+          case '/':
+            s += " / ";
+            break;
+
+          case '>':
+            s += " > ";
+            break;
+          case '<':
+            s += " < ";
+            break;
+          case '>=':
+            s += " >= ";
+            break;
+          case '<=':
+            s += " <= ";
+            break;
+          case '==':
+            s += " == ";
+            break;
+          case '===':
+            s += " === ";
+            break;
+          case '!=':
+            s += " != ";
+            break;
+          case '!==':
+            s += " !== ";
+            break;
+
+          case '&&':
+            s += " && ";
+            break;
+          case '||':
+            s += " || ";
+            break;
+
+          case 'u!':
+            s = '! ' + s;
+            return s;
+          case 'u-':
+            s = '- ' + s;
+            return s;
+          
+          default:
+            throw Error("Unknown function:", f);
+        }
+        s += expr(r, stats);
+        return s;
       }
     }
-    // If function,
-    else {
-      const { f, l, r } = p;
-      let s = expr(l, stats);
-
-      switch (f) {
-
-        case '+':
-          s += " + ";
-          break;
-        case '-':
-          s += " - ";
-          break;
-        case '*':
-          s += " * ";
-          break;
-        case '/':
-          s += " / ";
-          break;
-
-        case '>':
-          s += " > ";
-          break;
-        case '<':
-          s += " < ";
-          break;
-        case '>=':
-          s += " >= ";
-          break;
-        case '<=':
-          s += " <= ";
-          break;
-        case '==':
-          s += " == ";
-          break;
-        case '===':
-          s += " === ";
-          break;
-        case '!=':
-          s += " != ";
-          break;
-        case '!==':
-          s += " !== ";
-          break;
-
-        case '&&':
-          s += " && ";
-          break;
-        case '||':
-          s += " || ";
-          break;
-
-        case 'u!':
-          s = '! ' + s;
-          return s;
-        case 'u-':
-          s = '- ' + s;
-          return s;
-        
-        default:
-          throw Error("Unknown function:", f);
+    
+    // Converts parse tree of an expression to an anonymous javascript function, or
+    // a constant. If this method returns a function then it can be used when
+    // necessary by the interpreter.
+    function toJSValue(pt) {
+      if (pt === null) {
+        return null;
       }
-      s += expr(r, stats);
-      return s;
-    }
-  }
-  
-  // Converts parse tree of an expression to an anonymous javascript function, or
-  // a constant. If this method returns a function then it can be used when
-  // necessary by the interpreter.
-  function toJSValue(pt) {
-    if (pt === null) {
-      return null;
-    }
-  
-    let stats = { ids:[] };
-  
-    // Create the JavaScript that executes the operation,
-    let evaluation_string = expr(pt, stats);
-  
-    // Generate the function using 'eval',
-    const generated_function = eval('(function (p) { return ' + evaluation_string + ' })');
     
-    // If there are no idents used in the expression then it's safe to execute it
-    // here to produce a constant,
-    if (stats.ids.length === 0) {
-      return ['value', generated_function()];
-    }
-    else {
-      // Otherwise we have to evaluate this at runtime,
-      return ['function', evaluation_string];
-    }
-
-  }
-  
-  // Parse the args set,
-  function toArgs(pt) {
-    // Assert,
-    assert(pt.t === 'ARGS');
+      let stats = { ids:[] };
     
-    const d = pt.d;
-    const out = {};
-    for (let k in d) {
-      out[k] = toJSValue(d[k]);
-    }
-
-    return out;
-  }
-
-  function prepareFunction(func) {
-    const ident = func.l;
-    const args = toArgs(func.r);
-    return [ 'call', ident, args ];
-  }
-  
-  // Given a block of code, produces the functional code to be executed,
-  function prepareBlock(parser, block) {
-    // Assert,
-    assert(block.t === 'BLOCK');
+      // Create the JavaScript that executes the operation,
+      let evaluation_string = expr(pt, stats);
     
-    // The statements array,
-    const nested_stmts = block.v;
-    
-    // We group statements into an execution block,
-    const exec_block = {
-      stmts:[]
-    };
-    
-    // Using 'for' loop for performance,
-    const len = nested_stmts.length;
-    for (let i = 0; i < len; ++i) {
-      const stmt = nested_stmts[i];
-
-      if (stmt.f) {
-        // A function call,
-        const fun = stmt.f;
-        
-        if (fun === '=') {          // Assignment,
-          const ident = stmt.l;
-          const jsf = toJSValue(stmt.r);
-          exec_block.stmts.push( [ calcAddress(parser, stmt.loc), 'assign', ident, jsf ] );
-        }
-        else if (fun === 'call') {  // Function call
-          exec_block.stmts.push( [ calcAddress(parser, stmt.loc), 'nbcall', prepareFunction(stmt) ] );
-        }
-        // Language operations,
-        else if (fun === 'goto' || fun === 'preserve' || fun === 'evaluate') {
-          const ident = stmt.l;
-          exec_block.stmts.push( [ calcAddress(parser, stmt.loc), fun, ident ] );
-        }
-        else {
-          console.error("PENDING statement: ", stmt);
-          throw Error("PENDING statement");
-        }
-        
+      // Generate the function using 'eval',
+      let gen_function_source = '(function (p) { return ' + evaluation_string + ' })';
+      
+      // If there are no idents used in the expression then it's safe to execute it
+      // here to produce a constant,
+      if (stats.ids.length === 0) {
+        let generated_function = eval(gen_function_source);
+        return [ 'value', generated_function() ];
       }
       else {
-        // Must be a token, such as 'IF',
-        const tok = stmt.t;
-        
-        if (tok === 'IF') {       // Conditional,
-          const {e, b, o} = stmt;
-          // e = expression
-          // b = block
-          // o = other array (eg, else, elseif)
-          const conditional = toJSValue(e);
-          const block = prepareBlock(parser, b);
-
-          const if_prod = [ calcAddress(parser, stmt.loc), 'if', conditional, block ];
-          o.forEach( (s) => {
-            if_prod.push(toJSValue(s.e));
-            if_prod.push(prepareBlock(parser, s.b));
+        // Otherwise we have to evaluate at runtime.
+        if ( INCLUDE_SOURCEMAP_FOR_FUNCTIONS &&
+             typeof pt !== 'string' && pt.loc !== void 0 ) {
+          // Embed a url encoded source map for this function,
+          // This helps us with debugging. If this function generates an exception
+          // then the stacktrace will reference the true source of the error.
+          const pos = calculateScriptPosition(code_source, calcAddress(pt.loc));
+          const generator = new sourceMap.SourceMapGenerator({});
+          generator.addMapping({
+            source: filename,
+            original: pos,
+            generated: EVAL_GEN_POS
           });
+          const b64_enc_sm = encode64(generator.toString());
+          gen_function_source +=
+              "\n//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
+              b64_enc_sm;
+        }
+        return [ 'function', gen_function_source ];
+      }
+
+    }
+    
+    // Parse the args set,
+    function toArgs(pt) {
+      // Assert,
+      assert(pt.t === 'ARGS');
+      
+      const d = pt.d;
+      const out = {};
+      for (let k in d) {
+        out[k] = toJSValue(d[k]);
+      }
+
+      return out;
+    }
+
+    function prepareFunction(func) {
+      const ident = func.l;
+      const args = toArgs(func.r);
+      return [ 'call', ident, args ];
+    }
+    
+    // Given a block of code, produces the functional code to be executed,
+    function prepareBlock(block) {
+      // Assert,
+      assert(block.t === 'BLOCK');
+      
+      // The statements array,
+      const nested_stmts = block.v;
+      
+      // We group statements into an execution block,
+      const exec_block = {
+        stmts:[]
+      };
+      
+      // Using 'for' loop for performance,
+      const len = nested_stmts.length;
+      for (let i = 0; i < len; ++i) {
+        const stmt = nested_stmts[i];
+
+        if (stmt.f) {
+          // A function call,
+          const fun = stmt.f;
           
-          exec_block.stmts.push( if_prod );
+          if (fun === '=') {          // Assignment,
+            const ident = stmt.l;
+            const jsf = toJSValue(stmt.r);
+            exec_block.stmts.push( [ calcAddress(stmt.loc), 'assign', ident, jsf ] );
+          }
+          else if (fun === 'call') {  // Function call
+            exec_block.stmts.push( [ calcAddress(stmt.loc), 'nbcall', prepareFunction(stmt) ] );
+          }
+          // Language operations,
+          else if (fun === 'goto' || fun === 'preserve' || fun === 'evaluate') {
+            const ident = stmt.l;
+            exec_block.stmts.push( [ calcAddress(stmt.loc), fun, ident ] );
+          }
+          else {
+            console.error("PENDING statement: ", stmt);
+            throw Error("PENDING statement");
+          }
           
         }
         else {
-          console.error("PENDING token: ", stmt);
-          throw Error("PENDING token");
+          // Must be a token, such as 'IF',
+          const tok = stmt.t;
+          
+          if (tok === 'IF') {       // Conditional,
+            const {e, b, o} = stmt;
+            // e = expression
+            // b = block
+            // o = other array (eg, else, elseif)
+            const conditional = toJSValue(e);
+            const block = prepareBlock(b);
+
+            const if_prod = [ calcAddress(stmt.loc), 'if', conditional, block ];
+            o.forEach( (s) => {
+              if_prod.push(toJSValue(s.e));
+              if_prod.push(prepareBlock(s.b));
+            });
+            
+            exec_block.stmts.push( if_prod );
+            
+          }
+          else {
+            console.error("PENDING token: ", stmt);
+            throw Error("PENDING token");
+          }
         }
+        
       }
+      
+      return exec_block;
       
     }
-    
-    return exec_block;
-    
-  }
 
 
-  function prepareBaseStatement(parser, base_stmt) {
+    function prepareBaseStatement(base_stmt) {
 
-    const ls = base_stmt.f;
-    if (ls === 'let') {
+      const ls = base_stmt.f;
+      if (ls === 'let') {
 
-      // The identifier,
-      const identifier = base_stmt.l;
-      // The function or expression,
-      const expression = base_stmt.r;
-      
-      let e;
-      if (expression.f === 'call') {
-        e = prepareFunction(expression);
+        // The identifier,
+        const identifier = base_stmt.l;
+        // The function or expression,
+        const expression = base_stmt.r;
+        
+        let e;
+        if (expression.f === 'call') {
+          e = prepareFunction(expression);
+        }
+        else if (expression.t === 'INLINE') {
+          e = [ 'inline', expression.v ];
+        }
+        else {
+          e = toJSValue(expression);
+        }
+        
+        return [ calcAddress(base_stmt.loc), 'let', identifier, e ];
+        
       }
-      else if (expression.t === 'INLINE') {
-        e = [ 'inline', expression.v ];
+      else if (ls === 'refcall') {
+        
+        // The identifier,
+        const identifier = base_stmt.l;
+
+        return [ calcAddress(base_stmt.loc),
+                 'refcall', identifier, prepareFunction(base_stmt.r) ];
+        
       }
       else {
-        e = toJSValue(expression);
+        console.error(base_stmt);
+        throw Error("Unknown op type");
       }
+    
+    }
+
+    function prepareDefine(define_stmt) {
       
-      return [ calcAddress(parser, base_stmt.loc), 'let', identifier, e ];
+      // The define identifier,
+      const identifier = define_stmt.l;
+      // The define block of statements,
+      const block = define_stmt.r;
+      
+      // Prepare the block code,
+      const pb = prepareBlock(block);
+      
+      return { label:identifier, block:pb };
+
+    }
+    
+    // Prepares a scene tree. This transforms the parser output into a form that
+    // is trivially interpretable. Expressions are turned into anonymous JavaScript
+    // functions.
+    function prepareSceneTree(parser, base) {
+      
+      const statements = [];
+      const defines = [];
+      const imports = [];
+      
+      // Converts the tree to a series of js functions to be evaluated,
+      base.forEach( (base_stmt) => {
+        // base_stmt can only be one of the following functions;
+        //   'let':    Assigns an identifier to an asset.
+        //   'define': Defines a scene execution.
+        
+        const stmt_type = base_stmt.f;
+        switch(stmt_type) {
+          case 'let':
+            // Add to list,
+            statements.push(base_stmt);
+            break;
+          case 'refcall':
+            // Add to list,
+            statements.push(base_stmt);
+            break;
+          case 'define':
+            defines.push(base_stmt);
+            break;
+          case 'import':
+            imports.push(base_stmt);
+            break;
+          default:
+            console.error(stmt_type);
+            throw Error('PENDING base statement');
+        }
+        
+      });
+
+      const out = {
+        imports:[],
+        base_stmts:[],
+        defines:{}
+      };
+      
+      // Process the base statement blocks,
+      statements.forEach( (base_stmt) => {
+        const prepared_stmt = prepareBaseStatement(base_stmt);
+        out.base_stmts.push( prepared_stmt );
+      });
+      
+      // Process the define blocks,
+      defines.forEach( (define_stmt) => {
+        const prepared_define = prepareDefine(define_stmt);
+        out.defines[prepared_define.label] = prepared_define.block;
+      });
+
+      imports.forEach( (import_stmt) => {
+        out.imports.push( [ calcAddress(import_stmt.loc),
+                            toJSValue(import_stmt.l)[1] ]);
+      });
+
+
+      return out;
       
     }
-    else if (ls === 'refcall') {
-      
-//      console.log("----");
-//      console.log(base_stmt);
-//      console.log("----");
-//      throw Error("PENDING");
-      
-      // The identifier,
-      const identifier = base_stmt.l;
 
-      return [ calcAddress(parser, base_stmt.loc),
-               'refcall', identifier, prepareFunction(base_stmt.r) ];
-      
-    }
-    else {
-      console.error(base_stmt);
-      throw Error("Unknown op type");
-    }
-  
-  }
-
-  function prepareDefine(parser, define_stmt) {
-    
-    // The define identifier,
-    const identifier = define_stmt.l;
-    // The define block of statements,
-    const block = define_stmt.r;
-    
-    // Prepare the block code,
-    const pb = prepareBlock(parser, block);
-    
-    return { label:identifier, block:pb };
-
-  }
-  
-  // Prepares a scene tree. This transforms the parser output into a form that
-  // is trivially interpretable. Expressions are turned into anonymous JavaScript
-  // functions.
-  function prepareSceneTree(parser, base) {
-    
-    const statements = [];
-    const defines = [];
-    const imports = [];
-    
-    // Converts the tree to a series of js functions to be evaluated,
-    base.forEach( (base_stmt) => {
-      // base_stmt can only be one of the following functions;
-      //   'let':    Assigns an identifier to an asset.
-      //   'define': Defines a scene execution.
-      
-      const stmt_type = base_stmt.f;
-      switch(stmt_type) {
-        case 'let':
-          // Add to list,
-          statements.push(base_stmt);
-          break;
-        case 'refcall':
-          // Add to list,
-          statements.push(base_stmt);
-          break;
-        case 'define':
-          defines.push(base_stmt);
-          break;
-        case 'import':
-          imports.push(base_stmt);
-          break;
-        default:
-          console.error(stmt_type);
-          throw Error('PENDING base statement');
-      }
-      
-    });
-
-    const out = {
-      imports:[],
-      base_stmts:[],
-      defines:{}
+    // Output API,
+    return {
+      prepareSceneTree
     };
-    
-    // Process the base statement blocks,
-    statements.forEach( (base_stmt) => {
-      const prepared_stmt = prepareBaseStatement(parser, base_stmt);
-      out.base_stmts.push( prepared_stmt );
-    });
-    
-    // Process the define blocks,
-    defines.forEach( (define_stmt) => {
-      const prepared_define = prepareDefine(parser, define_stmt);
-      out.defines[prepared_define.label] = prepared_define.block;
-    });
 
-    imports.forEach( (import_stmt) => {
-      out.imports.push( [ calcAddress(parser, import_stmt.loc),
-                          toJSValue(import_stmt.l)[1] ]);
-    });
-
-
-    return out;
-    
-  }
+  };
+  
+  
+  
 
 
   function prepareSource(code_string, filename) {
 
     let tree;
     (function() {
+      
       // Create a Parser object from our grammar.
       const p = parseScene(code_string, filename);
     
@@ -479,7 +521,8 @@ function SceneComposer() {
         console.error("There's ", p.results.length, " possibilities.");
       }
     
-      tree = prepareSceneTree( p, p.results[0] );
+      const code_parser = CodeParser(filename, p, code_string);
+      tree = code_parser.prepareSceneTree( p, p.results[0] );
 
     })();
     
@@ -508,7 +551,7 @@ function SceneComposer() {
   //       [filename]: {
   //           hash: (unique id),
   //           tree: (JSONable parse tree),
-  //           calcLineColumn: (function that computes line/col given address)
+  //           calcLineColumn: (function that computes line/column given address)
   //       },
   //       ... next file ...
   //   }
