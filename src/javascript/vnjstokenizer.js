@@ -201,6 +201,11 @@ function Tokenizer( source_code ) {
         case '+':
         case '-':
         case '*':
+        case '$':
+        case '^':
+        case '~':
+        case '@':
+        case '?':
           pushToken('s', ch);
           i += 1;
           return;
@@ -272,9 +277,10 @@ function Tokenizer( source_code ) {
         return;
       }
       else {
-        const e = Error('Tokenize failed');
-        e.offset = n;
-        throw e;
+        // Otherwise we produce an unknown char token,
+        pushToken('u', ch);
+        i += 1;
+        return;
       }
     }
   }
