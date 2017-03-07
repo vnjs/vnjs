@@ -1,4 +1,4 @@
-
+"use strict";
 
 function isWhitespace(ch) {
   switch (ch) {
