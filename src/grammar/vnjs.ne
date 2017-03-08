@@ -18,6 +18,7 @@
     'then':-1,
     'else':-1,
     'let':-1,
+    'var':-1,
     'define':-1,
     'and':-1,
     'or':-1,
@@ -106,7 +107,7 @@ vnjs -> baseStatements _ {% nth(0) %}
   var NOT =    isSymbol('!');
   var ASSIGN = isSymbol('=');
 
-  var LET =    isWord('let');
+  var CONST =  isWord('const');
   var TRUE =   isWord('true');
   var FALSE =  isWord('false');
   var NULL =   isWord('null');
@@ -365,9 +366,9 @@ inlineCode -> %INLINECODE
 
 
 
-letRightSide -> expression {% id %}
-              | functionCall {% id %}
-              | inlineCode {% id %}
+constRightSide -> expression {% id %}
+                | functionCall {% id %}
+                | inlineCode {% id %}
 
 
 assignment -> local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
@@ -416,9 +417,9 @@ importstatement -> %IMPORT __ stringval _ %SEMICOLON {%
   }
 %}
 
-letstatement -> %LET __ local_ident _ %ASSIGN _ letRightSide _ %SEMICOLON {%
+conststatement -> %CONST __ local_ident _ %ASSIGN _ constRightSide _ %SEMICOLON {%
   function(d, loc) {
-    return { loc:loc, f:'let', l:d[2], r:d[6] }
+    return { loc:loc, f:'const', l:d[2], r:d[6] }
   }
 %}
 
@@ -437,7 +438,7 @@ nestedStatement -> assignment {% nth(0) %}
                  | comment {% nth(0) %}
 
 
-baseStatement -> letstatement {% nth(0) %}
+baseStatement -> conststatement {% nth(0) %}
                | baseFunctionCall _ %SEMICOLON {% nth(0) %}
                | definestatement {% nth(0) %}
                | importstatement {% nth(0) %}

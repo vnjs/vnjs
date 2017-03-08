@@ -284,7 +284,7 @@ function SceneComposer() {
           });
           gen_function_source += toInlineBase64Inline(generator, '\n');
         }
-        return [ 'function', gen_function_source ];
+        return [ 'function', gen_function_source, stats.ids ];
       }
 
     }
@@ -429,7 +429,7 @@ function SceneComposer() {
     function prepareBaseStatement(base_stmt) {
 
       const ls = base_stmt.f;
-      if (ls === 'let') {
+      if (ls === 'const') {
 
         // The identifier,
         const identifier = base_stmt.l;
@@ -449,7 +449,7 @@ function SceneComposer() {
           e = toJSValue(expression);
         }
         
-        return [ calcAddress(base_stmt.loc), 'let', identifier, e ];
+        return [ calcAddress(base_stmt.loc), 'const', identifier, e ];
         
       }
       else if (ls === 'refcall') {
@@ -494,12 +494,12 @@ function SceneComposer() {
       // Converts the tree to a series of js functions to be evaluated,
       base.forEach( (base_stmt) => {
         // base_stmt can only be one of the following functions;
-        //   'let':    Assigns an identifier to an asset.
+        //   'const':  Assigns an identifier to an asset.
         //   'define': Defines a scene execution.
         
         const stmt_type = base_stmt.f;
         switch(stmt_type) {
-          case 'let':
+          case 'const':
             // Add to list,
             statements.push(base_stmt);
             break;
