@@ -31,6 +31,7 @@ function $(o) {
     'then':-1,
     'else':-1,
     'let':-1,
+    'var':-1,
     'define':-1,
     'and':-1,
     'or':-1,
@@ -111,7 +112,7 @@ function $(o) {
   var NOT =    isSymbol('!');
   var ASSIGN = isSymbol('=');
 
-  var LET =    isWord('let');
+  var CONST =  isWord('const');
   var TRUE =   isWord('true');
   var FALSE =  isWord('false');
   var NULL =   isWord('null');
@@ -316,9 +317,9 @@ var grammar = {
         },
     {"name": "baseFunctionCall", "symbols": ["local_ident", "_", PERIOD, "_", "functionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
     {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
-    {"name": "letRightSide", "symbols": ["expression"], "postprocess": id},
-    {"name": "letRightSide", "symbols": ["functionCall"], "postprocess": id},
-    {"name": "letRightSide", "symbols": ["inlineCode"], "postprocess": id},
+    {"name": "constRightSide", "symbols": ["expression"], "postprocess": id},
+    {"name": "constRightSide", "symbols": ["functionCall"], "postprocess": id},
+    {"name": "constRightSide", "symbols": ["inlineCode"], "postprocess": id},
     {"name": "assignment", "symbols": ["local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
@@ -362,9 +363,9 @@ var grammar = {
           return { loc:loc, f:'import', l:d[2] }
         }
         },
-    {"name": "letstatement", "symbols": [LET, "__", "local_ident", "_", ASSIGN, "_", "letRightSide", "_", SEMICOLON], "postprocess": 
+    {"name": "conststatement", "symbols": [CONST, "__", "local_ident", "_", ASSIGN, "_", "constRightSide", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'let', l:d[2], r:d[6] }
+          return { loc:loc, f:'const', l:d[2], r:d[6] }
         }
         },
     {"name": "definestatement", "symbols": [DEFINE, "__", "local_ident", "_", "block"], "postprocess": 
@@ -378,7 +379,7 @@ var grammar = {
     {"name": "nestedStatement", "symbols": ["ifstatement"], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["langstatement"], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["comment"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["letstatement"], "postprocess": nth(0)},
+    {"name": "baseStatement", "symbols": ["conststatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["baseFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["definestatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["importstatement"], "postprocess": nth(0)},
