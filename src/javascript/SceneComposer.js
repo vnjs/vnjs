@@ -598,6 +598,7 @@ function SceneComposer() {
     const errors = [];
     const exported_vars = {};
     const globals = {};
+    const global_defineset = {};
     const var_dependencies = {};
     const import_stack = [];
 
@@ -731,8 +732,6 @@ function SceneComposer() {
 
     }
 
-
-
     // Resolve all exported variables, creates a map with a key for each file
     // which references an object with the following fields;
     //
@@ -809,6 +808,14 @@ function SceneComposer() {
         }
       }
 
+      // Process the defines map,
+      const defines = tree.defines;
+      for (let define in defines) {
+        const def_stmts = defines[define].stmts;
+        // Put them in the global define set,
+        global_defineset[define] = [ filename, def_stmts ];
+      }
+
       exported_vars[filename] = { depends: imports,
                                   exports: thisvnjs_exports,
                                   assign_order : thisvnjs_var_assign_order,
@@ -845,6 +852,7 @@ function SceneComposer() {
       for (let fn in codebase) {
         delete codebase[fn].tree.imports;
         delete codebase[fn].tree.base_stmts;
+        delete codebase[fn].tree.defines;
         codebase[fn].tree.depends = exported_vars[fn].depends;
         codebase[fn].tree.exports = exported_vars[fn].exports;
 
@@ -858,6 +866,7 @@ function SceneComposer() {
         assign_location: globals,
         var_dependencies : var_dependencies,
         global_varset : global_varset,
+        global_defineset : global_defineset,
         codebase : codebase
       };
     }
