@@ -2,13 +2,12 @@
 
 // External libs,  
 import VNScreen from './vnlib';
-//import SceneComposer from './SceneComposer';
 import { roundedShadowedRect } from './graphics';
 import { loadFile } from './utils';
 
-// This is really ugly, but it allows testing SceneComposer within
-// nodejs.
+// We use 'require' for import here so that these libraries also work in node.js
 let SceneComposer = require('./SceneComposer').SceneComposer;
+let Interpreter = require('./Interpreter').Interpreter;
 
 // Is this self-invoking function necessary with the babel transform?
 (function() {
@@ -60,12 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
   btn.addEventListener('click', () => {
     console.log("LAUNCH THE GAME!");
     launchIntoFullscreen(document.documentElement);
-    gameLaunch(main_div);
+    gameLaunch();
   }, false);
   
   btn2.addEventListener('click', () => {
     console.log("LAUNCH THE GAME!");
-    gameLaunch(main_div);
+    gameLaunch();
   }, false);
 
   main_div.appendChild(document.createElement('br'));
@@ -77,35 +76,78 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-function loadScene(uri) {
-  
-  loadFile(uri, function(status) {
-    if (status.fail) {
-      throw Error("Load failed", status);
+
+function loadAndParseScene(filenames, callback) {
+
+  // Load a .vnjs file using the web Javascript API,
+  function sourceLoader(filename, cb) {
+
+    const resolvedfn = 'scripts/' + filename;
+    loadFile(resolvedfn, function(status) {
+      if (status.fail) {
+        cb(status.fail);
+      }
+      else {
+        const data = status.req.responseText;
+        cb(null, data);
+      }
+    })
+
+  };
+
+  // Create a composer,
+  const composer = SceneComposer();
+  // Compile the scenes,
+  composer.prepareCodebase(
+          sourceLoader, filenames, function(err, parsed_vn) {
+
+    if (err) {
+      // PENDING: Handle error here,
+      console.error(err);
+    }
+    else {
+      callback(parsed_vn);
     }
 
-    // The successfully loaded source to compose,
-    const source_code = status.req.responseText;
-    // Create a composer,
-    const composer = SceneComposer();
+  });
+
+}
+
+
+
+
+
+
+function gameLaunch() {
+
+  // NOTE: In a client/server system this will wait listening for instruction
+  //   for the server and dispatch on the messages as appropriate.
+
+  // Load and parse the scene file,
+  const file_set = [ 'sys/init.vnjs', 'start.vnjs' ];
+  loadAndParseScene(file_set, function(parsed_vn) {
     
-    // Compose the script,
-    composer.evaluateScene(source_code);
+    const context = {};
+    
+    // Create interpreter,
+    const interpreter = Interpreter(parsed_vn);
+    
+    // Initialize state (evaluates all the global variables)
+    interpreter.initializeState(context);
+    interpreter.runDefine(context, 'initialize');
+
+    startupFunction();
     
   });
-  
-};
+
+}
 
 
-function gameLaunch(main_div) {
+// Called after the initial script is loaded and verified
+function startupFunction() {
   
-  
-  // Load the scene,
-  loadScene("scenes/test_scene.js");
-  
-  
-  
-  
+  const main_div = document.getElementById("main");
+
   const std_wid = (1280 * 1).toFixed(0);
   const std_hei = (720  * 1).toFixed(0);
   
