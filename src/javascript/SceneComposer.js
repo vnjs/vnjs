@@ -482,6 +482,7 @@ function SceneComposer() {
 
     }
     
+    
     // Prepares a scene tree. This transforms the parser output into a form that
     // is trivially interpretable. Expressions are turned into anonymous JavaScript
     // functions.
@@ -543,7 +544,6 @@ function SceneComposer() {
                             toJSValue(import_stmt.l)[1] ]);
       });
 
-
       return out;
       
     }
@@ -590,6 +590,281 @@ function SceneComposer() {
 
   }
   
+  
+  // Final stage of codebase process. This performs some static analysis of the
+  // tree to help with dependency tracking.
+  function processCodebase(codebase, input_filenames) {
+
+    const errors = [];
+    const exported_vars = {};
+    const globals = {};
+    const var_dependencies = {};
+    const import_stack = [];
+
+    function sourceLoc(filename, src_pos) {
+      const p = codebase[filename].calcLineColumn(src_pos);
+      return '(' + filename + ':' + p.line + ':' + p.column + ')';
+    }
+
+    function syntaxError(msg, filename, src_pos) {
+      errors.push(msg + ' ' + sourceLoc(filename, src_pos));
+    }
+
+    // Calls closure for every variable assigned,
+    function forEachReference(closure) {
+      for (let filename in exported_vars) {
+        const { depends, exports, assign_order, varops } = exported_vars[filename];
+        assign_order.forEach( (local_var) => {
+          const varop = varops[local_var];
+          closure(filename, local_var, varop, assign_order);
+        });
+      }
+    }
+
+    // Checks there are no duplicated global variables.
+    // Also checks there are no circular references. For example;
+    //   a = b; b = c; c = a;
+    //
+    // Populates the 'globals' object with details of all global objects.
+    // Populates the 'var_dependencies' object.
+    //
+    function checkReferences() {
+      
+      // Build set of all global variables,
+      
+      for (let filename in exported_vars) {
+        const { depends, exports, assign_order, varops } = exported_vars[filename];
+
+        // Add all exports to global set,
+        exports.forEach( (e) => {
+          // Ok, variable clash here.
+          const te = [ filename, varops[e][0] ];
+          if (globals[e] !== void 0) {
+            const g1 = globals[e];
+            errors.push( 'Duplicate declared global \'' + e + '\' found. At ' + sourceLoc(g1[0], g1[1]) + ' and ' + sourceLoc(te[0], te[1]) );
+          }
+          globals[e] = te;
+        });
+        
+      }
+
+      // Closure called on every reference,
+      forEachReference( (filename, v, varop, local_set) => {
+        const src_pos = varop[0];
+        const vop = varop[1];
+
+        function addCallRefs(callop, src_pos, var_refs) {
+          if (callop[0] !== 'call') throw Error("Assert failed: " + callop[0]);
+
+          // The argument map,
+          const arg_map = callop[2];
+          for (let ak in arg_map) {
+            const argv = arg_map[ak];
+            if (argv[0] === 'function') {
+              argv[2].forEach( (v) => {
+                var_refs.push( [v, src_pos] );
+              });
+            }
+          }
+
+        }
+
+        const var_refs = [];
+        if (vop[0] === 'function') {
+          // The list of variables this function references,
+          vop[2].forEach( (v) => {
+            var_refs.push( [v, src_pos] );
+          });
+          
+        }
+        else if (vop[0] === 'call') {
+          addCallRefs(vop, src_pos, var_refs);
+          for (let i = 2; i < varop.length; ++i) {
+            addCallRefs(varop[i][1], varop[i][0], var_refs);
+          }
+        }
+        
+        // Build the dependency map,
+        var_dependencies[v] = var_refs;
+        
+      });
+
+      function checkNotCircular(var_filename, src_pos, v, var_deps, stack, var_pruner) {
+        // We've already checked this variable, so exit early.
+        if (var_pruner[v] === -1) {
+          return;
+        }
+        const globv = globals[v];
+        if (globv === void 0) {
+          // Variable not found,
+          syntaxError("'" + v + "' not found ", var_filename, src_pos);
+        }
+        else {
+          
+          if (stack.indexOf(v) >= 0) {
+            syntaxError("Circular dependency on variable '" + v + "' [" + stack.toString() + "] ", var_filename, src_pos);
+            return;
+          }
+          stack.push(v);
+
+          const filename = globv[0];
+
+          const dependants = var_deps[v];
+          dependants.forEach((dep) => {
+            const dep_v = dep[0];
+            const dep_src_pos = dep[1];
+            checkNotCircular(filename, dep_src_pos, dep_v, var_deps, stack, var_pruner);
+          });
+
+        }
+
+        var_pruner[v] = -1;
+        stack.pop();
+      }
+      
+      // Check for circular dependencies,
+      const stack = [];
+      const pruner = {};
+      for (let v in var_dependencies) {
+        checkNotCircular('', 0, v, var_dependencies, stack, pruner);
+      }
+
+    }
+
+
+
+    // Resolve all exported variables, creates a map with a key for each file
+    // which references an object with the following fields;
+    //
+    //   const { depends, exports, assign_order, varops } = exported_vars[filename]
+    //
+    function resolveExports(filename) {
+
+      // Check for circular import dependencies,
+      if (import_stack.indexOf(filename) >= 0) {
+        return;
+      }
+
+      // Push to the import stack,
+      import_stack.push(filename);
+
+      // If the exports already resolved for file,
+      if (exported_vars[filename] !== void 0) {
+        return;
+      }
+
+      // The prepared file object,
+      const { hash, tree, calcLineColumn } = codebase[filename];
+
+      // The imports for this file,
+      const imports = tree.imports;
+
+      const thisvnjs_varnames = {};
+      const thisvnjs_exports = [];
+      const thisvnjs_var_assign_order = [];
+
+      // Resolve the exports for this file,
+      // The base statements,
+      const base_stmts = tree.base_stmts;
+      for (let i = 0; i < base_stmts.length; ++i) {
+        const stmt = base_stmts[i];
+        const src_pos = stmt[0];
+        const type = stmt[1];
+
+        if (type === 'const') {
+          const ident = stmt[2];
+          const rhs = stmt[3];  // Either 'call', 'function' or 'value'
+
+          if (thisvnjs_varnames[ident] === void 0) {
+            thisvnjs_varnames[ident] = [ src_pos, rhs ];
+            thisvnjs_var_assign_order.push(ident);
+            // NOTE: Currently all variables are exported into global space,
+            thisvnjs_exports.push(ident);
+          }
+          else {
+            // Oops, multiple of the same definition,
+            syntaxError("'" + ident + "' duplicate declaration", filename, src_pos);
+            import_stack.pop();
+            return;
+          }
+        }
+        else if (type === 'refcall') {
+          // Refcalls can only reference identifiers that are defined in the local scope,
+          const ident = stmt[2];
+          const rhs = stmt[3];  // Always a 'call'
+
+          const varop = thisvnjs_varnames[ident];
+          if (varop === void 0) {
+            syntaxError("'" + ident + "' not found", filename, src_pos);
+            import_stack.pop();
+            return;
+          }
+          else {
+            // Make a list of all operations to execute on this,
+            varop.push( [ src_pos, rhs ] );
+          }
+        }
+        else {
+          throw Error("Unexpected type: " + type);
+        }
+      }
+
+      exported_vars[filename] = { depends: imports,
+                                  exports: thisvnjs_exports,
+                                  assign_order : thisvnjs_var_assign_order,
+                                  varops : thisvnjs_varnames };
+
+      for (let i = 0; i < imports.length; ++i) {
+        // Resolve all the exports for the files we import first,
+        resolveExports(imports[i][1]);
+      }
+
+      // Pop from the import stack,
+      import_stack.pop();
+
+    }
+
+    // Resolve the exports,
+    input_filenames.forEach( (ifn) => {
+      resolveExports(ifn);
+    });
+    if (errors.length === 0) {
+      checkReferences();
+    }
+
+    if (errors.length > 0) {
+      errors.forEach( (error) => {
+        console.error(error);
+      });
+      throw Error("There were errors. See the console.")
+    }
+    else {
+      const global_varset = {};
+      
+      // Clean up codebase,
+      for (let fn in codebase) {
+        delete codebase[fn].tree.imports;
+        delete codebase[fn].tree.base_stmts;
+        codebase[fn].tree.depends = exported_vars[fn].depends;
+        codebase[fn].tree.exports = exported_vars[fn].exports;
+
+        const m = exported_vars[fn].varops;
+        for (let v in m) {
+          global_varset[v] = m[v];
+        }
+      }
+
+      return {
+        assign_location: globals,
+        var_dependencies : var_dependencies,
+        global_varset : global_varset,
+        codebase : codebase
+      };
+    }
+
+  }
+
+
   // Prepares the entire codebase given the base file and a source loader. Once
   // all files are prepared then calls 'callback'.
   //
@@ -607,7 +882,9 @@ function SceneComposer() {
   //       ... next file ...
   //   }
   //
-  function prepareCodebase(sourceLoader, filename, callback) {
+  function prepareCodebase(sourceLoader, filenames, callback) {
+    
+    const input_filenames = filenames;
     
     // Only callback error one time,
     let error_reported = false;
@@ -623,51 +900,65 @@ function SceneComposer() {
     // The result codebase,
     const codebase = {};
     
-    function loadAndResolve(filename) {
+    function loadAndResolve(filenames) {
 
-      loading[filename] = -1;
+      filenames.forEach( (filename) => {
+        loading[filename] = -1;
+      });
     
-      function scriptLoadCallback(err, data) {
-        loading[filename] = 1;
-        // Failed to load file,
-        if (err) {
-          callbackError(err);
-          return;
-        }
-        try {
-          const code = prepareSource(data, filename);
-          codebase[filename] = code;
-          
-          const nimports = code.tree.imports;
-          nimports.forEach( (nimport) => {
-            const fn = nimport[1];
-            // If this import hasn't been loaded yet,
-            if (loading[fn] === void 0) {
-              loadAndResolve(fn);
-            }
-          });
-          
-          // If everything is loaded,
-          let all_loaded = true;
-          for (let key in loading) {
-            if (loading[key] === -1) {
-              all_loaded = false;
-              break;
-            }
-          }
-          if (all_loaded) {
-            callback(null, codebase);
-          }
-        }
-        catch (e) {
-          callbackError(e);
-        }
-      }
+      filenames.forEach( (filename) => {
+        
+        sourceLoader(filename, (err, data) => {
 
-      sourceLoader(filename, scriptLoadCallback);
+          loading[filename] = 1;
+          // Failed to load file,
+          if (err) {
+            callbackError(err);
+            return;
+          }
+          try {
+            const code = prepareSource(data, filename);
+            codebase[filename] = code;
+            
+            const nimports = code.tree.imports;
+            const to_load = [];
+            nimports.forEach( (nimport) => {
+              const fn = nimport[1];
+              // If this import hasn't been loaded yet,
+              if (loading[fn] === void 0) {
+                to_load.push(fn);
+              }
+            });
+            loadAndResolve(to_load);
+            
+            // If everything is loaded,
+            let all_loaded = true;
+            for (let key in loading) {
+              if (loading[key] === -1) {
+                all_loaded = false;
+                break;
+              }
+            }
+            if (all_loaded) {
+              // Final process stage of the codebase,
+              try {
+                callback(null, processCodebase(codebase, input_filenames));
+              }
+              catch (err) {
+                callback(err);
+              }
+            }
+          }
+          catch (e) {
+            callbackError(e);
+          }
+          
+        });
+
+      });
     }
     
-    loadAndResolve(filename);
+    loadAndResolve(filenames);
     
   }
 
