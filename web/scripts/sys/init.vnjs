@@ -1,0 +1,53 @@
+
+// Defines system globals,
+
+
+
+// Javascript code that's executed by the client at initialization.
+const JS_startup = {%
+
+  function (context, complete) {
+    // Assert that this startup script can only be run once,
+    context.assertRunOnce();
+
+    
+
+//    var preloaded_resources = [
+//      { id:'ui_header', 'Assets/ui/header.png' },
+//      { id:'ui_settings', 'Assets/ui/settings.png' }
+//    ];
+//    
+//    // Preload resources. When all resources loaded then call 'complete' closure,
+//    context.loadResources( preloaded_resources,
+//      function(err) {
+//        if (err) {
+//          context.reportError(err);
+//        }
+//        else {
+//          complete();
+//        }
+//      }
+//    )
+    
+    // Customize the predefined UI elements, such as buttons, fonts, etc.
+    
+
+  }
+
+%};
+
+
+// The initialize define is run first,
+define initialize {
+
+  // Run the startup script on client. Wait until finished,
+  evaluate JS_startup;
+
+//  // Then display the splash screen,
+//  evaluate JS_splashScreen;
+
+//  // Then display the main menu,
+//  goto main_menu;
+
+}
+
