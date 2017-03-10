@@ -88,7 +88,7 @@ function toInlineBase64Inline(generator, nl_separator) {
   const encoding =
       ( nl_separator +
         "//# sourceMappingURL=data:application/json;charset=utf-8;base64," +
-        encode64(generator.toString()) );
+        encode64(generator.toString()) + nl_separator );
   return encoding;
 }
 
@@ -257,7 +257,7 @@ function SceneComposer() {
     // Converts parse tree of an expression to an anonymous javascript function, or
     // a constant. If this method returns a function then it can be used when
     // necessary by the interpreter.
-    function toJSValue(pt) {
+    function toJSValue(pt, parent_loc) {
       if (pt === null) {
         return null;
       }
@@ -277,20 +277,26 @@ function SceneComposer() {
         return [ 'value', generated_function() ];
       }
       else {
+        const gen_loc = (typeof pt === 'string') ? parent_loc : pt.loc;
         // Otherwise we have to evaluate at runtime.
-        if ( INCLUDE_SOURCEMAP_FOR_FUNCTIONS &&
-             typeof pt !== 'string' && pt.loc !== void 0 ) {
-          // Embed a url encoded source map for this function,
-          // This helps us with debugging. If this function generates an exception
-          // then the stacktrace will reference the true source of the error.
-          const pos = calculateScriptPosition(code_source, calcAddress(pt.loc));
-          const generator = new sourceMap.SourceMapGenerator({});
-          generator.addMapping({
-            source: filename,
-            original: pos,
-            generated: EVAL_GEN_POS
-          });
-          gen_function_source += toInlineBase64Inline(generator, '\n');
+        if ( INCLUDE_SOURCEMAP_FOR_FUNCTIONS) {
+          if (gen_loc !== void 0) {
+            // Embed a url encoded source map for this function,
+            // This helps us with debugging. If this function generates an exception
+            // then the stacktrace will reference the true source of the error.
+            const pos = calculateScriptPosition(code_source, calcAddress(gen_loc));
+            const generator = new sourceMap.SourceMapGenerator({});
+            generator.addMapping({
+              source: filename,
+              original: pos,
+              generated: EVAL_GEN_POS
+            });
+            gen_function_source += toInlineBase64Inline(generator, '\n');
+          }
+          else {
+            console.error(pt);
+            throw Error("Unable to generate source map for expression");
+          }
         }
         return [ 'function', gen_function_source, stats.ids, createUniqueFunctionID() ];
       }
@@ -305,7 +311,7 @@ function SceneComposer() {
       const d = pt.d;
       const out = {};
       for (let k in d) {
-        out[k] = toJSValue(d[k]);
+        out[k] = toJSValue(d[k], pt.loc);
       }
 
       return out;
@@ -383,7 +389,7 @@ function SceneComposer() {
           
           if (fun === '=') {          // Assignment,
             const ident = stmt.l;
-            const jsf = toJSValue(stmt.r);
+            const jsf = toJSValue(stmt.r, stmt.loc);
             exec_block.stmts.push( [ calcAddress(stmt.loc), 'assign', ident, jsf ] );
           }
           else if (fun === 'call') {  // Function call
@@ -409,12 +415,12 @@ function SceneComposer() {
             // e = expression
             // b = block
             // o = other array (eg, else, elseif)
-            const conditional = toJSValue(e);
+            const conditional = toJSValue(e, stmt.loc);
             const block = prepareBlock(b);
 
             const if_prod = [ calcAddress(stmt.loc), 'if', conditional, block ];
             o.forEach( (s) => {
-              if_prod.push(toJSValue(s.e));
+              if_prod.push(toJSValue(s.e, s.loc));
               if_prod.push(prepareBlock(s.b));
             });
             
@@ -443,6 +449,7 @@ function SceneComposer() {
         const identifier = base_stmt.l;
         // The function or expression,
         const expression = base_stmt.r;
+        const src_loc = base_stmt.loc;
         
         let e;
         if (expression.f === 'call') {
@@ -454,10 +461,10 @@ function SceneComposer() {
           e = [ 'inline', inline_source, createUniqueFunctionID() ];
         }
         else {
-          e = toJSValue(expression);
+          e = toJSValue(expression, src_loc);
         }
         
-        return [ calcAddress(base_stmt.loc), 'const', identifier, e ];
+        return [ calcAddress(src_loc), 'const', identifier, e ];
         
       }
       else if (ls === 'refcall') {
@@ -548,8 +555,9 @@ function SceneComposer() {
       });
 
       imports.forEach( (import_stmt) => {
-        out.imports.push( [ calcAddress(import_stmt.loc),
-                            toJSValue(import_stmt.l)[1] ]);
+        const istmt_loc = import_stmt.loc;
+        out.imports.push( [ calcAddress(istmt_loc),
+                            toJSValue(import_stmt.l, istmt_loc)[1] ]);
       });
 
       return out;
