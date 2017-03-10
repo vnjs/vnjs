@@ -291,7 +291,9 @@ function VNScreen(canvas_element, config) {
   
   // This function preloads the default font. This is necessary so text measurements can be
   // accurately discovered before rendering.
-  function preloadFonts() {
+  // Best attempt to call 'cb' when the fonts are loaded.
+  function preloadFonts(cb) {
+
     // A canvas element we use for font metrics
     const ctx = document.createElement('canvas').getContext('2d');
     const styles = ['', 'italic ', 'bold ', 'italic bold '];
@@ -299,12 +301,18 @@ function VNScreen(canvas_element, config) {
     styles.forEach( (style) => {
       ctx.font = style + '10px ' + config.default_font_family;
       const m = ctx.measureText('Hello');
-      console.log('.', ctx.font, m);
+      console.log('PRELOAD ', ctx.font);
     });
-    
+
+    // HACK: We need to find a way to listen for the event of a font being loaded.
+    //   There may be some sort of CSS .display hack to do this.
+    //   At the moment we just wait a reasonable time for the font to load.
+    setTimeout( () => {
+      cb( null, { status:'fontloaded' } );
+    }, 500);
+
   };
-  
-  
+
   // ----- Functions -----
   
   // Returns a dialog text trail formatter for the dialog bar.

@@ -2,15 +2,10 @@
 
 function Interpreter(parsed_vn) {
 
+//  console.log(parsed_vn);
+
   const global_defineset = parsed_vn.global_defineset;
 
-  // Creates a dependency set for resolving the given variable name in the given
-  // file,
-  function resolveDependency(context) {
-
-    
-
-  }
   
   // Finds the block of statements (as entry at top of stack) of the statement
   // with the given position. Returns the index within the array of the position.
@@ -100,7 +95,7 @@ function Interpreter(parsed_vn) {
         const rhs = stmt[3];
         context.execAssign(lhs, rhs);
         context.setIPos( nextStatement(src_pos) );
-        
+
         cb();
       }
       // Branch,
@@ -167,6 +162,8 @@ function Interpreter(parsed_vn) {
   
   // Initialize the context state.
   function initializeState(context, cb) {
+    context.setConstantsInfo( { global_varset: parsed_vn.global_varset,
+                                var_dependencies: parsed_vn.var_dependencies } );
     context.initialize(cb);
   }
 
@@ -180,13 +177,10 @@ function Interpreter(parsed_vn) {
       cb( Error('Define not found: ' + define_name) );
     }
     else {
-
       // Set the current instruction define/position,
       context.setIDefine(define_name);
       context.setIPos(-1);
-
       cb();
-
     }
 
   }

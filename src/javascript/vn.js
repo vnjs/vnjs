@@ -104,7 +104,8 @@ function loadAndParseScene(filenames, callback) {
 
     if (err) {
       // PENDING: Handle error here,
-      console.error(err);
+      throw err;
+//      console.error(err);
     }
     else {
       callback(parsed_vn);
@@ -126,13 +127,120 @@ function FrontEnd() {
   // The public global variables object,
   const global_vars = {};
 
+  // The public constant variables given by the backend,
+  const constant_vars = {};
+  // The public constant variable definitions given by the backend,
+  const constant_var_defs = {};
+  
+  // The compiled functions given us by the backend,
+  const function_load_map = {};
+
+  let vn_screen;
+  let display_canvas;
+  const config = {};
   
   
+  
+  const property_resolver = {
+    getV: function(ident) {
+      // Is it a constant?
+      const constant_v_def = constant_var_defs[ident];
+      if (constant_v_def) {
+        let constant_v = constant_vars[ident];
+        if (constant_v === void 0) {
+          // Process the definition
+          constant_v = processConstantDef(ident, constant_v_def);
+        }
+        return constant_v;
+      }
+      else {
+        return global_vars[ident];
+      }
+    }
+  };
+  
+  // Resolve the function parameters,
+  function toJSObject(params) {
+    const out = {};
+    for (let ident in params) {
+      out[ident] = toValue(params[ident]);
+    }
+    return out;
+  }
+  
+  // Creates an object from the given constructor name.
+  function constantConstruction(name, params) {
+    console.log("PENDING: Construct object type: ", name);
+    console.log(params);
+    
+    return { obtype: name };
+  }
+  
+  function processConstantDef(ident, def) {
+    
+    const type = def[0][0];
+    let constant_ob;
+    if (type === 'v') {
+      constant_ob = def[0][1];
+    }
+    else if (type === 'c') {
+      const constant_fun_name = def[0][1];
+      const constant_params = toJSObject(def[0][2]);
+      constant_ob = constantConstruction(constant_fun_name, constant_params);
+      for (let i = 1; i < def.length; ++i) {
+        // Mutator functions,
+        const fname = def[i][1];
+        const fun = constant_ob[fname];
+        if (fun === void 0) {
+          throw Error("Method not found: " + constant_fun_name + "." + fname);
+        }
+        fun(toJSObject(def[i][2]));
+      }
+    }
+    else {
+      throw Error(type);
+    }
+
+    constant_vars[ident] = constant_ob;
+    return constant_ob;
+//    return 'a';
+  }
+  
+  // Returns a JavaScript typed value given the value from the
+  // back end.
+  function toValue(vob) {
+    if (vob.v) {
+      return vob.v;
+    }
+    else {
+      return function_load_map[vob.f](property_resolver);
+    }
+  }
+  
+  // ---- System API calls ----
+
+  // Prints a debug message to console,
   system_calls.debug = function(args, cb) {
-    console.log(args.default);
+    console.log(toValue(args.default));
+    cb();
+  };
+  system_calls.preloadAssets = function(args, cb) {
+    const to_preload = toValue(args.default);
+    console.log("PENDING: preloadAssets for: ", to_preload);
+    
+    
+    
     cb();
   };
   
+  
+  // Preloads fonts,
+  system_calls.preloadFonts = function(args, cb) {
+    vn_screen.preloadFonts(cb);
+  };
+
+  
+  // ---- System API calls ----
   
   // Initialize the context VNJS javascript API,
   function initialize(cb) {
@@ -144,10 +252,6 @@ function FrontEnd() {
     const std_wid = (1280 * 1).toFixed(0);
     const std_hei = (720  * 1).toFixed(0);
       
-    let vn_screen;
-    let display_canvas;
-    let config = {};
-
     // Make the canvas element,
     main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
 
@@ -158,8 +262,13 @@ function FrontEnd() {
 
   }
   
-  function prepareExpression(expr) {
-    console.log('prepareExpression: ' + expr);
+  function loadConstant(varname, fcode) {
+    constant_var_defs[varname] = fcode;
+  }
+  
+  function loadFunction(function_id, function_source_code) {
+    const compiled_fun = eval(function_source_code);
+    function_load_map[function_id] = compiled_fun;
   }
 
   function execAssign(ident, val) {
@@ -186,7 +295,8 @@ function FrontEnd() {
 
   return {
     initialize,
-    prepareExpression,
+    loadConstant,
+    loadFunction,
     execAssign,
     execCall,
   };
