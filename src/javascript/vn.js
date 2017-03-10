@@ -7,6 +7,7 @@ import { loadFile } from './utils';
 
 // We use 'require' for import here so that these libraries also work in node.js
 let SceneComposer = require('./SceneComposer').SceneComposer;
+let Context = require('./Context').Context;
 let Interpreter = require('./Interpreter').Interpreter;
 
 // Is this self-invoking function necessary with the babel transform?
@@ -117,6 +118,89 @@ function loadAndParseScene(filenames, callback) {
 
 
 
+function FrontEnd() {
+  
+  // All the system calls,
+  const system_calls = {};
+  
+  // The public global variables object,
+  const global_vars = {};
+
+  
+  
+  system_calls.debug = function(args, cb) {
+    console.log(args.default);
+    cb();
+  };
+  
+  
+  // Initialize the context VNJS javascript API,
+  function initialize(cb) {
+
+    // Create the canvas element,
+    const main_div = document.getElementById("main");
+
+    // PENDING: Handle narrow and wide orientations and different aspect ratios,
+    const std_wid = (1280 * 1).toFixed(0);
+    const std_hei = (720  * 1).toFixed(0);
+      
+    let vn_screen;
+    let display_canvas;
+    let config = {};
+
+    // Make the canvas element,
+    main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
+
+    display_canvas = document.getElementById("vnBodyCanvas");
+    vn_screen = VNScreen(display_canvas, config);
+
+    cb( null, { status:'initializeret' } );
+
+  }
+  
+  function prepareExpression(expr) {
+    console.log('prepareExpression: ' + expr);
+  }
+
+  function execAssign(ident, val) {
+    // Assign the value in the global vars object,
+    global_vars[ident] = val;
+  }
+
+  function execCall(ident, args, cb) {
+
+    // Dispatch the command,
+    
+    // Is it a system API call?
+    const syscall = system_calls[ident];
+    if (syscall !== void 0) {
+      // Yes, it's a system call,
+      syscall(args, cb);
+    }
+    else {
+      console.log("frontend.execCall ", ident, args);
+      cb( null, { status:'callret' } );
+    }
+
+  }
+
+  return {
+    initialize,
+    prepareExpression,
+    execAssign,
+    execCall,
+  };
+}
+
+
+
+
+
+
+
+
+
+// NOTE: Inline parser of script files.
 
 function gameLaunch() {
 
@@ -127,17 +211,35 @@ function gameLaunch() {
   const file_set = [ 'sys/init.vnjs', 'start.vnjs' ];
   loadAndParseScene(file_set, function(parsed_vn) {
     
-    const context = {};
+    const front_end = FrontEnd();
+    const context = Context(front_end);
     
     // Create interpreter,
     const interpreter = Interpreter(parsed_vn);
-    
-    // Initialize state (evaluates all the global variables)
-    interpreter.initializeState(context);
-    interpreter.runDefine(context, 'initialize');
 
-    startupFunction();
-    
+    // Initialize state (evaluates all the global variables)
+    interpreter.initializeState(context, ( err, retval ) => {
+      interpreter.gotoDefine(context, 'start', ( err, retval ) => {
+
+        // Execute the next statement,
+        function execNext(err, code) {
+          if (err) {
+            throw err;
+          }
+          if (code) {
+            if (code.status === 'finished') {
+              console.log("Interpreter finished");
+              return;
+            }
+          }
+          interpreter.executeStatements(context, execNext);
+        }
+        // Start the interpreter loop,
+        execNext();
+
+      });
+    });
+
   });
 
 }

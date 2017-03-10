@@ -98,6 +98,14 @@ function toInlineBase64Inline(generator, nl_separator) {
 function SceneComposer() {
 
 
+  // Creates a unique function id,
+  let unique_function_id = 1;
+  function createUniqueFunctionID() {
+    ++unique_function_id;
+    return unique_function_id;
+  }
+
+
   // Tokenize and parse the file using Nearley
   function parseScene(code_string, filename) {
 
@@ -284,7 +292,7 @@ function SceneComposer() {
           });
           gen_function_source += toInlineBase64Inline(generator, '\n');
         }
-        return [ 'function', gen_function_source, stats.ids ];
+        return [ 'function', gen_function_source, stats.ids, createUniqueFunctionID() ];
       }
 
     }
@@ -443,7 +451,7 @@ function SceneComposer() {
         else if (expression.t === 'INLINE') {
           // Convert to inline code string.
           const inline_source = convertInlineCodeString(expression);
-          e = [ 'inline', inline_source ];
+          e = [ 'inline', inline_source, createUniqueFunctionID() ];
         }
         else {
           e = toJSValue(expression);
