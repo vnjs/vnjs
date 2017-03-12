@@ -204,7 +204,6 @@ value -> boolean   {% id %}
        | stringval {% id %}
        | nullval   {% id %}
 
-#parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% nth(2) %}
 parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, t:'(', v:d[2] } } %}
 
 binaryOp -> orOp {% id %}
@@ -268,6 +267,18 @@ local_ident -> identifier        {%
 
 # ---------------
 
+simpleArgAssign -> valueOrPareth {%
+  function(d, loc) {
+    return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
+  }
+%}
+                 | local_ident _ %COLON _ valueOrPareth {%
+  function(d, loc) {
+    return { loc:loc, t:'ARG_ASSIGN', l:d[0], r:d[4] }
+  }
+%}
+
+
 
 argAssign -> expression {%
   function(d, loc) {
@@ -282,29 +293,37 @@ argAssign -> expression {%
 
 
 
-argSetTree -> argAssign {% id %}
-            | argAssign __ argSetTree
+argSetTree -> simpleArgAssign {% id %}
+            | simpleArgAssign __ argSetTree
     {% function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[2] } } %}
-            | argAssign _ %COMMA _ argSetTree
-    {% function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } } %}
+            | comment _ argSetTree
+    {% nth(2) %}
 
-argSet -> argSetTree {%
-  function(d, loc, reject) {
+commaArgSetTree -> argAssign {% id %}
+            | argAssign _ %COMMA _ commaArgSetTree
+    {% function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } } %}
+            | comment _ commaArgSetTree
+    {% nth(2) %}
+
+@{%
+  var flattenArgumentTree = function(d, loc, reject) {
     // Flatten argument tree,
     var map = {};
     var tree = d[0];
     function flatten(n) {
-      if (n.t === 'ARG_ASSIGN') {
-        if (map[n.l] === void 0) {
-          map[n.l] = n.r;
+      if (n !== null) {
+        if (n.t === 'ARG_ASSIGN') {
+          if (map[n.l] === void 0) {
+            map[n.l] = n.r;
+          }
+          else {
+            return reject;
+          }
         }
         else {
-          return reject;
+          // Recurse left and right, and reject if necessary
+          if (flatten(n.l) === reject || flatten(n.r) === reject) return reject;
         }
-      }
-      else {
-        // Recurse left and right, and reject if necessary
-        if (flatten(n.l) === reject || flatten(n.r) === reject) return reject;
       }
     }
     if (flatten(d[0]) === reject) {
@@ -315,6 +334,13 @@ argSet -> argSetTree {%
     }
   }
 %}
+
+argSet -> argSetTree {% flattenArgumentTree %}
+
+commaArgSet -> commaArgSetTree (_ %COMMA):? {% flattenArgumentTree %}
+
+
+
 
 
 
@@ -351,7 +377,7 @@ functionCall -> local_ident _ %OPENP _ %CLOSEP {%
     return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
   }
 %}
-              | local_ident _ %OPENP _ argSet _ %CLOSEP {%
+              | local_ident _ %OPENP _ commaArgSet _ %CLOSEP {%
   function(d, loc) {
     return { loc:loc, f:'call', l:d[0], r:d[4] }
   }
