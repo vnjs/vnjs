@@ -136,6 +136,35 @@ function $(o) {
     test: function(n) { return n[0] === 'ic' }
   };
   
+
+
+  var flattenArgumentTree = function(d, loc, reject) {
+    // Flatten argument tree,
+    var map = {};
+    var tree = d[0];
+    function flatten(n) {
+      if (n !== null) {
+        if (n.t === 'ARG_ASSIGN') {
+          if (map[n.l] === void 0) {
+            map[n.l] = n.r;
+          }
+          else {
+            return reject;
+          }
+        }
+        else {
+          // Recurse left and right, and reject if necessary
+          if (flatten(n.l) === reject || flatten(n.r) === reject) return reject;
+        }
+      }
+    }
+    if (flatten(d[0]) === reject) {
+      return reject;
+    }
+    else {
+      return { loc:loc, t:'ARGS', d:map }
+    }
+  }
 var grammar = {
     ParserRules: [
     {"name": "vnjs", "symbols": ["baseStatements", "_"], "postprocess": nth(0)},
@@ -246,6 +275,16 @@ var grammar = {
         //    return { loc:loc, t:'LOCAL', v:str };
           }
         },
+    {"name": "simpleArgAssign", "symbols": ["valueOrPareth"], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
+        }
+        },
+    {"name": "simpleArgAssign", "symbols": ["local_ident", "_", COLON, "_", "valueOrPareth"], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, t:'ARG_ASSIGN', l:d[0], r:d[4] }
+        }
+        },
     {"name": "argAssign", "symbols": ["expression"], "postprocess": 
         function(d, loc) {
           return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
@@ -256,36 +295,17 @@ var grammar = {
           return { loc:loc, t:'ARG_ASSIGN', l:d[0], r:d[4] }
         }
         },
-    {"name": "argSetTree", "symbols": ["argAssign"], "postprocess": id},
-    {"name": "argSetTree", "symbols": ["argAssign", "__", "argSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[2] } }},
-    {"name": "argSetTree", "symbols": ["argAssign", "_", COMMA, "_", "argSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } }},
-    {"name": "argSet", "symbols": ["argSetTree"], "postprocess": 
-        function(d, loc, reject) {
-          // Flatten argument tree,
-          var map = {};
-          var tree = d[0];
-          function flatten(n) {
-            if (n.t === 'ARG_ASSIGN') {
-              if (map[n.l] === void 0) {
-                map[n.l] = n.r;
-              }
-              else {
-                return reject;
-              }
-            }
-            else {
-              // Recurse left and right, and reject if necessary
-              if (flatten(n.l) === reject || flatten(n.r) === reject) return reject;
-            }
-          }
-          if (flatten(d[0]) === reject) {
-            return reject;
-          }
-          else {
-            return { loc:loc, t:'ARGS', d:map }
-          }
-        }
-        },
+    {"name": "argSetTree", "symbols": ["simpleArgAssign"], "postprocess": id},
+    {"name": "argSetTree", "symbols": ["simpleArgAssign", "__", "argSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[2] } }},
+    {"name": "argSetTree", "symbols": ["comment", "_", "argSetTree"], "postprocess": nth(2)},
+    {"name": "commaArgSetTree", "symbols": ["argAssign"], "postprocess": id},
+    {"name": "commaArgSetTree", "symbols": ["argAssign", "_", COMMA, "_", "commaArgSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } }},
+    {"name": "commaArgSetTree", "symbols": ["comment", "_", "commaArgSetTree"], "postprocess": nth(2)},
+    {"name": "argSet", "symbols": ["argSetTree"], "postprocess": flattenArgumentTree},
+    {"name": "commaArgSet$ebnf$1$subexpression$1", "symbols": ["_", COMMA]},
+    {"name": "commaArgSet$ebnf$1", "symbols": ["commaArgSet$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "commaArgSet$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "commaArgSet", "symbols": ["commaArgSetTree", "commaArgSet$ebnf$1"], "postprocess": flattenArgumentTree},
     {"name": "block", "symbols": [OPENB, "nestedStatements", "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:d[1] } }},
     {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:[] } }},
     {"name": "nbFunctionCall", "symbols": ["local_ident"], "postprocess": 
@@ -310,7 +330,7 @@ var grammar = {
           return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
         }
         },
-    {"name": "functionCall", "symbols": ["local_ident", "_", OPENP, "_", "argSet", "_", CLOSEP], "postprocess": 
+    {"name": "functionCall", "symbols": ["local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'call', l:d[0], r:d[4] }
         }
