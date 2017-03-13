@@ -2,8 +2,10 @@
 
 // External libs,  
 import VNScreen from './vnlib';
-import { roundedShadowedRect } from './graphics';
-import { loadFile } from './utils';
+import TextTrail from './TextTrail';
+import { roundedRect, roundedShadowedRect } from './graphics';
+import { loadFile, mergeConfig } from './utils';
+
 
 // We use 'require' for import here so that these libraries also work in node.js
 let SceneComposer = require('./SceneComposer').SceneComposer;
@@ -123,7 +125,10 @@ function FrontEnd() {
   
   // All the system calls,
   const system_calls = {};
-  
+
+  // System object constructors,
+  const sys_obj_constructors = {};
+
   // The public global variables object,
   const global_vars = {};
 
@@ -148,8 +153,9 @@ function FrontEnd() {
       if (constant_v_def) {
         let constant_v = constant_vars[ident];
         if (constant_v === void 0) {
-          // Process the definition
-          constant_v = processConstantDef(ident, constant_v_def);
+          // Construct the constant variable,
+          constant_v = constructConstantDef(ident, constant_v_def);
+          console.log("CREATED CONSTANT: ", ident, "=", constant_v);
         }
         return constant_v;
       }
@@ -170,13 +176,16 @@ function FrontEnd() {
   
   // Creates an object from the given constructor name.
   function constantConstruction(name, params) {
-    console.log("PENDING: Construct object type: ", name);
-    console.log(params);
-    
-    return { obtype: name };
+    const sys_constr = sys_obj_constructors[name];
+    if (sys_constr !== void 0) {
+      return sys_constr(params);
+    }
+    else {
+      throw Error("Constructor '" + name + "' not found");
+    }
   }
   
-  function processConstantDef(ident, def) {
+  function constructConstantDef(ident, def) {
     
     const type = def[0][0];
     let constant_ob;
@@ -217,19 +226,97 @@ function FrontEnd() {
     }
   }
   
+  
+  function doProportional(desc, clos) {
+    if (typeof desc === 'string') {
+      desc = desc.trim();
+      if (desc.length > 1) {
+        const len = desc.length;
+        if (desc.charAt(len - 1) === '%') {
+          return clos(parseFloat(desc.substring(0, len - 1)));
+        }
+      }
+    }
+    return desc;
+  }
+  
+  
+  function setElementStyle(out, styles) {
+    if (styles.alpha) {
+      out.args.alpha = styles.alpha;
+//      console.log("Set draw alpha = ", styles.alpha);
+      out.el.setDrawAlpha(styles.alpha);
+    }
+    if (styles.x) {
+      let xdesc = styles.x;
+      out.args.x = xdesc;
+      const xval = doProportional(xdesc, (percent) => {
+        return display_canvas.width * (percent / 100);
+      });
+//      console.log("Set X = ", xval);
+      out.el.setX(xval);
+    }
+    if (styles.y) {
+      let ydesc = styles.y;
+      out.args.y = ydesc;
+      const yval = doProportional(ydesc, (percent) => {
+        return display_canvas.height * (percent / 100);
+      });
+//      console.log("Set Y = ", yval);
+      out.el.setY(yval);
+    }
+    if (styles.scale_x) {
+      out.args.scale_x = styles.scale_x;
+      const sx = doProportional(styles.scale_x, (percent) => {
+        return (percent / 100);
+      });
+//      console.log("Set scale_x = ", sx);
+      out.el.setScaleX(sx);
+    }
+    if (styles.scale_y) {
+      out.args.scale_y = styles.scale_y;
+      const sy = doProportional(styles.scale_y, (percent) => {
+        return (percent / 100);
+      });
+//      console.log("Set scale_y = ", sy);
+      out.el.setScaleY(sy);
+    }
+  }
+  
+  
   // ---- System API calls ----
 
   // Prints a debug message to console,
   system_calls.debug = function(args, cb) {
-    console.log(toValue(args.default));
+    console.log(args.default);
     cb();
   };
   system_calls.preloadAssets = function(args, cb) {
-    const to_preload = toValue(args.default);
+    const to_preload = args.default;
     console.log("PENDING: preloadAssets for: ", to_preload);
     
     
     
+    cb();
+  };
+  
+  
+  // Set the default text trail (where announcements go)
+  system_calls.setDefaultTextTrail = function(args, cb) {
+    const text_trail = args.default;
+    console.log("PENDING: setDefaultTextTrail: ", text_trail);
+    cb();
+  };
+  
+  // Sets the style properties of a screen element,
+  system_calls.setStyle = function(args, cb) {
+    const element = args.default;
+    
+    setElementStyle(element, args);
+    
+    // Repaint the screen,
+    vn_screen.repaint();
+
     cb();
   };
   
@@ -239,6 +326,74 @@ function FrontEnd() {
     vn_screen.preloadFonts(cb);
   };
 
+
+  // ---- Constructors ----
+
+  // TextTrail object.
+  const DEFAULT_TTRAIL_CONFIG = {
+    default_font_family: 'sans-serif',
+    default_font_size: '25px',
+    default_font_color: '#ffffff',
+    pixels_between_words: 7,
+    line_height: 30
+  };
+  sys_obj_constructors.TextTrail = function(args) {
+    let ttconfig = mergeConfig({}, DEFAULT_TTRAIL_CONFIG);
+    if (args.font_family) ttconfig.default_font_family = args.font_family;
+    if (args.font_size) ttconfig.default_font_size = args.font_size;
+    if (args.font_color) ttconfig.default_font_color = args.font_color;
+    if (args.width) ttconfig.buffer_width = args.width;
+    if (args.height) ttconfig.buffer_height = args.height;
+    
+    ttconfig = mergeConfig(ttconfig, args);
+    console.log(ttconfig);
+    const text_trail = TextTrail(ttconfig);
+    return {
+      ob: 'TextTrail',
+      args,
+      el: text_trail,
+    };
+  };
+
+  // Rectangle object.
+  sys_obj_constructors.Rectangle = function(args) {
+    const out = {
+      ob: 'Rectangle',
+      args,
+    }
+    const rectangle = vn_screen.createPaintingCanvasElement(args.width, args.height);
+    rectangle.draw = function(ctx, vns) {
+      const { width, height, fill_style, stroke_style, line_width, corner_radius } = out.args;
+      
+      roundedRect(ctx, -(width / 2), -(height / 2), width, height, corner_radius );
+      
+      if (fill_style) {
+        ctx.fillStyle = fill_style;
+        ctx.fill();
+      }
+      if (stroke_style) {
+        ctx.strokeStyle = stroke_style;
+        if (line_width) {
+          ctx.lineWidth = line_width;
+        }
+        else {
+          ctx.lineWidth = 1;
+        }
+        ctx.stroke();
+      }
+    };
+    out.el = rectangle;
+    // Set initial canvas style properties,
+    setElementStyle(out, args);
+//    rectangle.setDrawAlpha(1);
+//    rectangle.setDepth(100);
+    return out;
+  };
+
+  
+
+  
+  
   
   // ---- System API calls ----
   
@@ -284,7 +439,7 @@ function FrontEnd() {
     const syscall = system_calls[ident];
     if (syscall !== void 0) {
       // Yes, it's a system call,
-      syscall(args, cb);
+      syscall(toJSObject(args), cb);
     }
     else {
       console.log("frontend.execCall ", ident, args);
