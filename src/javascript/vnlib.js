@@ -61,9 +61,6 @@ function VNScreen(canvas_element, config) {
   // The current set of active elements to draw on the canvas, sorted by z depth.
   const canvas_elements = [];
   
-  // Maps canvas_element_id string to the canvas element object,
-  const canvas_element_map = {};
-  
   // When this is set to true, the canvas elements are sorted by depth on the
   // next draw call.
   let sort_depth_before_draw = false;
@@ -197,6 +194,7 @@ function VNScreen(canvas_element, config) {
         // Translate the context to the element midpoint,
         resetTransform(ctx);
         ctx.translate(el.x, el.y);
+        ctx.scale(el.scale_x, el.scale_y);
         ctx.globalAlpha = el.drawAlpha;
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);
@@ -436,24 +434,15 @@ function VNScreen(canvas_element, config) {
   // ----- Support classes -----
 
 
-  function getCanvasElement(id) {
-    return canvas_element_map[id];
-  };
-  
   function notifyDoSortDepthBeforeDraw() {
     sort_depth_before_draw = true;
   };
   
   // Creates a new canvas element and adds it to the list of all elements currently
   // active on the current canvas.
-  function createCanvasElement(id) {
-    const existing_el = getCanvasElement(id);
-    if (existing_el) {
-      return existing_el;
-    }
-    const el = CanvasElement(id);
+  function createCanvasElement() {
+    const el = CanvasElement();
     canvas_elements.push(el);
-    canvas_element_map[id] = el;
     notifyDoSortDepthBeforeDraw();
     // Force full repaint when we add and remove canvas elements,
     repaint();
@@ -462,8 +451,8 @@ function VNScreen(canvas_element, config) {
   
   const NOOP_DRAW = function(ctx, vnscreen) { };
   
-  function createPaintingCanvasElement(id, width, height) {
-    const el = createCanvasElement(id);
+  function createPaintingCanvasElement(width, height) {
+    const el = createCanvasElement();
     el.type = 'PAINTING';
     el.width = width;
     el.height = height;
@@ -474,8 +463,8 @@ function VNScreen(canvas_element, config) {
   };
   
   // Create a static image canvas element.
-  function createStaticImageCanvasElement(id, img_id) {
-    const el = createCanvasElement(id);
+  function createStaticImageCanvasElement(img_id) {
+    const el = createCanvasElement();
     el.type = 'STATIC';
     el.img_id = img_id;
     const img_obj = images_map[img_id];
@@ -502,55 +491,55 @@ function VNScreen(canvas_element, config) {
   
   
   
-  // ----- Scene handling -----
-  
-  let timout_function = null;
-
-  
-  
-
-  function playScene(scene_function, props) {
-    const scene = Scene(out_vnscreen, scene_function);
-    
-    function process_scene_frame() {
-      // Clear the frame state for the user code,
-      scene.clearFrame();
-
-      // Go to user code,
-      scene_function(scene, props);
-
-      if (is_displaying_dialog_trail) {
-        if (!scene.isDisplayingTextTrail()) {
-          config.text_trail_exit(scene, props);
-          clearDialogText();
-          is_displaying_dialog_trail = false;
-        }
-      }
-      else {
-        if (scene.isDisplayingTextTrail()) {
-          config.text_trail_enter(scene, props);
-          is_displaying_dialog_trail = true;
-        }
-      }
-      
-      // Get the next frame transition type,
-      const next_ftt = scene.getNextFrameTransitionType();
-      const next_ftp = scene.getNextFrameTransitionParams();
-      
-      if (next_ftt === Scene.STATICS.INTERRUPTABLE_PAUSE) {
-        setTimeout(process_scene_frame, next_ftp[0]);
-      }
-      else if (next_ftt === Scene.STATICS.WAIT_UNTIL_INTERACT) {
-        
-      }
-      else {
-        console.log("Unknown frame transition type: ", next_ftt);
-      }
-
-    };
-    
-    setTimeout(process_scene_frame, 10);
-  };
+//  // ----- Scene handling -----
+//  
+//  let timout_function = null;
+//
+//  
+//  
+//
+//  function playScene(scene_function, props) {
+//    const scene = Scene(out_vnscreen, scene_function);
+//    
+//    function process_scene_frame() {
+//      // Clear the frame state for the user code,
+//      scene.clearFrame();
+//
+//      // Go to user code,
+//      scene_function(scene, props);
+//
+//      if (is_displaying_dialog_trail) {
+//        if (!scene.isDisplayingTextTrail()) {
+//          config.text_trail_exit(scene, props);
+//          clearDialogText();
+//          is_displaying_dialog_trail = false;
+//        }
+//      }
+//      else {
+//        if (scene.isDisplayingTextTrail()) {
+//          config.text_trail_enter(scene, props);
+//          is_displaying_dialog_trail = true;
+//        }
+//      }
+//      
+//      // Get the next frame transition type,
+//      const next_ftt = scene.getNextFrameTransitionType();
+//      const next_ftp = scene.getNextFrameTransitionParams();
+//      
+//      if (next_ftt === Scene.STATICS.INTERRUPTABLE_PAUSE) {
+//        setTimeout(process_scene_frame, next_ftp[0]);
+//      }
+//      else if (next_ftt === Scene.STATICS.WAIT_UNTIL_INTERACT) {
+//        
+//      }
+//      else {
+//        console.log("Unknown frame transition type: ", next_ftt);
+//      }
+//
+//    };
+//    
+//    setTimeout(process_scene_frame, 10);
+//  };
 
 
 
@@ -567,12 +556,11 @@ function VNScreen(canvas_element, config) {
     clearDialogText,
 
     addInterpolation,
-    getCanvasElement,
     notifyDoSortDepthBeforeDraw,
     createCanvasElement,
     createPaintingCanvasElement,
     createStaticImageCanvasElement,
-    playScene,
+//    playScene,
   };
   return out_vnscreen;
 
