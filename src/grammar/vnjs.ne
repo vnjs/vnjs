@@ -138,8 +138,8 @@ vnjs -> baseStatements _ {% nth(0) %}
 
 
 # Whitespace: `_` is optional, `__` is mandatory.
-_  -> %WHITESPACE:? {% toNull %}
-__ -> %WHITESPACE   {% toNull %}
+_  -> (%WHITESPACE | %COMMENT):* {% toNull %}
+__ -> (%WHITESPACE | %COMMENT):+ {% toNull %}
 
 stringval -> %STRING_CONST {% function(d, loc) { return { loc:loc, t:'STRING', v:d[0][1] } } %}
 
@@ -296,14 +296,10 @@ argAssign -> expression {%
 argSetTree -> simpleArgAssign {% id %}
             | simpleArgAssign __ argSetTree
     {% function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[2] } } %}
-            | comment _ argSetTree
-    {% nth(2) %}
 
 commaArgSetTree -> argAssign {% id %}
             | argAssign _ %COMMA _ commaArgSetTree
     {% function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } } %}
-            | comment _ commaArgSetTree
-    {% nth(2) %}
 
 @{%
   var flattenArgumentTree = function(d, loc, reject) {
@@ -461,14 +457,12 @@ nestedStatement -> assignment {% nth(0) %}
                  | nbFunctionCall _ %SEMICOLON {% nth(0) %}
                  | ifstatement {% nth(0) %}
                  | langstatement {% nth(0) %}
-                 | comment {% nth(0) %}
 
 
 baseStatement -> conststatement {% nth(0) %}
                | baseFunctionCall _ %SEMICOLON {% nth(0) %}
                | definestatement {% nth(0) %}
                | importstatement {% nth(0) %}
-               | comment {% nth(0) %}
 
 nestedStatements -> ( _ nestedStatement ):+ {% toList(0, 1) %}
 

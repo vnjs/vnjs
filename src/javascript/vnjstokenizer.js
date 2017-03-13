@@ -40,7 +40,7 @@ function Tokenizer( source_code ) {
   let state = 0;
   
   let tokens = [];
-  
+
   function pushToken(type, content) {
     tokens.push( [ type, content, i ] );
   };
