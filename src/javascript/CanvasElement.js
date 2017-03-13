@@ -4,18 +4,17 @@ import { isUndefined } from './utils';
 
 
 
-function CanvasElement(id) {
+function CanvasElement() {
   
   const ce = {
     type: 'EMPTY',
-    id,
     x: 0,
     y: 0,
     depth: 1,
     rotation: 0,
     scale_x: 1,
     scale_y: 1,
-    drawAlpha: 1,
+    drawAlpha: 0,
   };
   
   function setDepth(depth) {
@@ -23,6 +22,12 @@ function CanvasElement(id) {
   };
   function setLocation(x, y) {
     ce.x = x;
+    ce.y = y;
+  };
+  function setX(x) {
+    ce.x = x;
+  };
+  function setY(y) {
     ce.y = y;
   };
   function setScale(x, y) {
@@ -36,6 +41,12 @@ function CanvasElement(id) {
         ce.scale_y = y;
       }
     }
+  };
+  function setScaleX(sx) {
+    ce.scale_x = sx;
+  };
+  function setScaleY(sy) {
+    ce.scale_y = sy;
   };
   function setDrawAlpha(alpha) {
     ce.drawAlpha = alpha;
@@ -70,6 +81,10 @@ function CanvasElement(id) {
   ce.setDrawAlpha = setDrawAlpha;
   ce.setNoScaleFactor = setNoScaleFactor;
   ce.getBounds = getBounds;
+  ce.setX = setX;
+  ce.setY = setY;
+  ce.setScaleX = setScaleX;
+  ce.setScaleY = setScaleY;
 
   return ce;  
 }
