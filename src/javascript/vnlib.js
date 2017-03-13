@@ -195,6 +195,7 @@ function VNScreen(canvas_element, config) {
         resetTransform(ctx);
         ctx.translate(el.x, el.y);
         ctx.scale(el.scale_x, el.scale_y);
+        ctx.rotate(el.rotation);
         ctx.globalAlpha = el.drawAlpha;
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);

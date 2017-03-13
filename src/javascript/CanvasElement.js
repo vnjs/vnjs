@@ -51,6 +51,9 @@ function CanvasElement() {
   function setDrawAlpha(alpha) {
     ce.drawAlpha = alpha;
   };
+  function setRotation(rot) {
+    ce.rotation = rot;
+  };
   function setNoScaleFactor(bool) {
     ce.noScaleFactor = bool;
   };
@@ -79,6 +82,7 @@ function CanvasElement() {
   ce.setLocation = setLocation;
   ce.setScale = setScale;
   ce.setDrawAlpha = setDrawAlpha;
+  ce.setRotation = setRotation;
   ce.setNoScaleFactor = setNoScaleFactor;
   ce.getBounds = getBounds;
   ce.setX = setX;
