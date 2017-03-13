@@ -247,6 +247,10 @@ function FrontEnd() {
 //      console.log("Set draw alpha = ", styles.alpha);
       out.el.setDrawAlpha(styles.alpha);
     }
+    if (styles.rotation) {
+      out.args.rotation = styles.rotation;
+      out.el.setRotation(styles.rotation);
+    }
     if (styles.x) {
       let xdesc = styles.x;
       out.args.x = xdesc;
