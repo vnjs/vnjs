@@ -14,7 +14,7 @@ function CanvasElement() {
     rotation: 0,
     scale_x: 1,
     scale_y: 1,
-    drawAlpha: 0,
+    alpha: 0,
   };
   
   function setDepth(depth) {
@@ -49,7 +49,7 @@ function CanvasElement() {
     ce.scale_y = sy;
   };
   function setDrawAlpha(alpha) {
-    ce.drawAlpha = alpha;
+    ce.alpha = alpha;
   };
   function setRotation(rot) {
     ce.rotation = rot;
@@ -57,6 +57,15 @@ function CanvasElement() {
   function setNoScaleFactor(bool) {
     ce.noScaleFactor = bool;
   };
+  function setRawStyles(styles) {
+    for (let f in styles) {
+      // Protect 'type' field
+      if (f !== 'type') {
+        ce[f] = styles[f];
+      }
+    }
+  };
+  
   function getBounds() {
     if (this.rotation !== 0) {
       // Account for rotation,
@@ -89,6 +98,7 @@ function CanvasElement() {
   ce.setY = setY;
   ce.setScaleX = setScaleX;
   ce.setScaleY = setScaleY;
+  ce.setRawStyles = setRawStyles;
 
   return ce;  
 }

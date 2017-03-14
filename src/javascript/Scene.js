@@ -84,7 +84,7 @@ const Scene = function(g, scene_function) {
     const canvas_element = g.getCanvasElement(element_id);
     const i = Interpolation('alpha', ms_to, canvas_element);
     // Define the starting and ending alpha values to interpolate over,
-    i.start_x = canvas_element.drawAlpha;
+    i.start_x = canvas_element.alpha;
     i.end_x = dest_alpha;
     
     i.interpolate = function(ts) {

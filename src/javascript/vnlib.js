@@ -189,14 +189,14 @@ function VNScreen(canvas_element, config) {
     // Cycle over the canvas elements,
     canvas_elements.forEach( (el) => {
       // Do we draw the element?
-      if (el.drawAlpha > 0) {
+      if (el.alpha > 0) {
         // Yup,
         // Translate the context to the element midpoint,
         resetTransform(ctx);
         ctx.translate(el.x, el.y);
         ctx.scale(el.scale_x, el.scale_y);
         ctx.rotate(el.rotation);
-        ctx.globalAlpha = el.drawAlpha;
+        ctx.globalAlpha = el.alpha;
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);
       }

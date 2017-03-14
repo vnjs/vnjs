@@ -97,7 +97,6 @@ function toInlineBase64Inline(generator, nl_separator) {
 
 function SceneComposer() {
 
-
   // Creates a unique function id,
   let unique_function_id = 1;
   function createUniqueFunctionID() {
@@ -112,6 +111,8 @@ function SceneComposer() {
     // Tokenize the string,
     const tokenizer = Tokenizer(code_string);
     const tokens = tokenizer.getTokens();
+
+//    console.log(tokens);
 
 //    // Assert the token set can be reconstructed into the code string,
 //    let recons = '';
