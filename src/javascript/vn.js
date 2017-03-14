@@ -239,52 +239,88 @@ function FrontEnd() {
     }
     return desc;
   }
+
+  // Returns radians of either a string '[num]deg' or a number (as radians).
+  function convertRotational(v) {
+    if (typeof v === 'string') {
+      v = v.trim();
+      if (v.length > 3) {
+        const len = v.length;
+        const ty = v.substring(len - 3, len);
+        if (ty === 'deg') {
+          const degrees = parseFloat( v.substring(0, len - 3) );
+          return (degrees * (Math.PI / 180));
+        }
+        else if (ty === 'rad') {
+          return parseFloat(v.substring(0, len - 3));
+        }
+      }
+    }
+    return v;
+  }
+
   
-  
-  function setElementStyle(out, styles) {
-    if (styles.alpha) {
-      out.args.alpha = styles.alpha;
-//      console.log("Set draw alpha = ", styles.alpha);
-      out.el.setDrawAlpha(styles.alpha);
+  // Converts the input styles into a raw format (converts degrees to radians,
+  // proportional positioning, etc)
+  function convertToRawStyles(styles, ignore_keys) {
+    const raw_out = {};
+    for (let sk in styles) {
+      if (ignore_keys[sk]) {
+        continue;
+      }
+      const style = styles[sk];
+      switch(sk) {
+//        case 'alpha':
+//          raw_out.alpha = style;
+//          break;
+        case 'rotation':
+          raw_out.rotation = convertRotational(style);
+          break;
+        case 'x':
+          const xval = doProportional(style, (percent) => {
+            return display_canvas.width * (percent / 100);
+          });
+          raw_out.x = xval;
+          break;
+        case 'y':
+          const yval = doProportional(style, (percent) => {
+            return display_canvas.height * (percent / 100);
+          });
+          raw_out.y = yval;
+          break;
+        case 'scale_x':
+          const sx = doProportional(style, (percent) => {
+            return (percent / 100);
+          });
+          raw_out.scale_x = sx;
+          break;
+        case 'scale_y':
+          const sy = doProportional(style, (percent) => {
+            return (percent / 100);
+          });
+          raw_out.scale_y = sy;
+          break;
+
+        default:
+          raw_out[sk] = style;
+      }
     }
-    if (styles.rotation) {
-      out.args.rotation = styles.rotation;
-      out.el.setRotation(styles.rotation);
+    return raw_out;
+  }
+
+
+  function setElementStyle(out, styles, ignore_keys) {
+    // Convert the styles to a raw format,
+    const raw_styles = convertToRawStyles(styles, ignore_keys);
+    // Move the styles (in specified format) to 'out.args'
+    for (let sk in styles) {
+      if (!ignore_keys[sk]) {
+        const style = styles[sk];
+        out.args[sk] = style;
+      }
     }
-    if (styles.x) {
-      let xdesc = styles.x;
-      out.args.x = xdesc;
-      const xval = doProportional(xdesc, (percent) => {
-        return display_canvas.width * (percent / 100);
-      });
-//      console.log("Set X = ", xval);
-      out.el.setX(xval);
-    }
-    if (styles.y) {
-      let ydesc = styles.y;
-      out.args.y = ydesc;
-      const yval = doProportional(ydesc, (percent) => {
-        return display_canvas.height * (percent / 100);
-      });
-//      console.log("Set Y = ", yval);
-      out.el.setY(yval);
-    }
-    if (styles.scale_x) {
-      out.args.scale_x = styles.scale_x;
-      const sx = doProportional(styles.scale_x, (percent) => {
-        return (percent / 100);
-      });
-//      console.log("Set scale_x = ", sx);
-      out.el.setScaleX(sx);
-    }
-    if (styles.scale_y) {
-      out.args.scale_y = styles.scale_y;
-      const sy = doProportional(styles.scale_y, (percent) => {
-        return (percent / 100);
-      });
-//      console.log("Set scale_y = ", sy);
-      out.el.setScaleY(sy);
-    }
+    // Move the styles to the canvas element,
+    out.el.setRawStyles(raw_styles);
   }
   
   
@@ -316,13 +352,30 @@ function FrontEnd() {
   system_calls.setStyle = function(args, cb) {
     const element = args.default;
     
-    setElementStyle(element, args);
+    setElementStyle(element, args, { 'default':-1 } );
     
     // Repaint the screen,
     vn_screen.repaint();
 
     cb();
   };
+
+  // Animate one or more style properties of an element,
+  const NO_STYLE_ARGS = { time:-1, easing:-1, 'default':-1 };
+  system_calls.animate = function(args, cb) {
+    const element = args.default;
+
+    const anim_to_style = convertToRawStyles(args, NO_STYLE_ARGS);
+    const { time, easing } = args;
+
+    console.log("ANIMATE!");
+    console.log("time = ", time);
+    console.log("easing = ", easing);
+    console.log("style = ", anim_to_style);
+    
+    cb();
+  };
+  
   
   
   // Preloads fonts,
@@ -388,7 +441,7 @@ function FrontEnd() {
     };
     out.el = rectangle;
     // Set initial canvas style properties,
-    setElementStyle(out, args);
+    setElementStyle(out, args, {});
 //    rectangle.setDrawAlpha(1);
 //    rectangle.setDepth(100);
     return out;
