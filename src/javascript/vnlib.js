@@ -4,7 +4,6 @@ import { isUndefined, mergeConfig, polyfill2DCanvas, Rectangle } from './utils';
 
 import TextFormatter from './TextFormatter';
 import CanvasElement from './CanvasElement';
-import Scene         from './Scene';
 import TextTrail     from './TextTrail';
 
 // Visual Novel engine base library script.

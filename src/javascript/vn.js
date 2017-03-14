@@ -150,7 +150,7 @@ function FrontEnd() {
     getV: function(ident) {
       // Is it a constant?
       const constant_v_def = constant_var_defs[ident];
-      if (constant_v_def) {
+      if (constant_v_def !== void 0) {
         let constant_v = constant_vars[ident];
         if (constant_v === void 0) {
           // Construct the constant variable,
@@ -218,7 +218,7 @@ function FrontEnd() {
   // Returns a JavaScript typed value given the value from the
   // back end.
   function toValue(vob) {
-    if (vob.v) {
+    if (vob.v !== void 0) {
       return vob.v;
     }
     else {
@@ -322,6 +322,91 @@ function FrontEnd() {
     // Move the styles to the canvas element,
     out.el.setRawStyles(raw_styles);
   }
+
+
+
+  function Interpolation(type, ms_to, canvas_element) {
+    let time_start = performance.now();
+    return {
+      type,
+      time_start,
+      ms_to,
+      canvas_element
+    };
+  };
+
+  // t = current time
+  // d = total time
+  // b = beginning value
+  // c = difference of value
+  function noEasing(t, d, b, c) {
+    return c * ( t / d ) + b;
+  };
+
+  // http://www.timotheegroleau.com/Flash/experiments/easing_function_generator.htm
+
+  function easeOut(t, d, b, c) {
+    var ts = (t/=d) * t;
+    var tc = ts * t;
+    return b + c * (-1 * tc * ts + 4 * ts * ts + -5 * tc + ts + 2 * t);
+  };
+
+  function easeIn(t, d, b, c) {
+    var ts=(t/=d)*t;
+    var tc=ts*t;
+    return b+c*(0.5*tc*ts + -1.5*ts*ts + 2*tc);
+  };
+
+  function easingFunction(easing, t, d, b, c) {
+    switch (easing) {
+      case 'no-ease':
+        return noEasing(t, d, b, c);
+      case 'ease-out':
+        return easeOut(t, d, b, c);
+      case 'ease-in':
+        return easeIn(t, d, b, c);
+      default:
+        throw new Error('Unknown easing: ' + easing);
+    }
+  };
+
+
+  // Works out the animation interpolation of transitioning from the element's
+  // current style to the styles specified by 'target_styles'. The animation lasts
+  // for 'time' seconds and uses the given easing function.
+  function addInterpolations(el, target_styles, time, easing) {
+    
+    console.log("ANIMATE:", el, target_styles, time, easing);
+    
+    if (easing === void 0) {
+      easing = 'no-ease';
+    }
+
+    // Record the applicable current state of the element,
+    const cur_styles = {};
+    for (let k in target_styles) {
+      cur_styles[k] = el[k];
+    }
+
+    const ms_to = time * 1000;
+    const i = Interpolation('styles', ms_to, el);
+    i.interpolate = function(ts) {
+      for (let k in target_styles) {
+        const from_v = cur_styles[k];
+        const to_v = target_styles[k];
+        const ts_av = easingFunction(
+                          easing, ts - i.time_start, ms_to, from_v, to_v - from_v);
+        el[k] = ts_av;
+      }
+    };
+    i.complete = function() {
+      el.setRawStyles(target_styles);
+    };
+
+    vn_screen.addInterpolation(i, ms_to);
+
+  }
+  
   
   
   // ---- System API calls ----
@@ -360,19 +445,24 @@ function FrontEnd() {
     cb();
   };
 
+  // Sets the target style of the given element in the next 'animate' call,
+  system_calls.setTargetStyle = function(args, cb) {
+    const element = args.default;
+    const target_style = convertToRawStyles(args, { 'default':-1 } );
+
+    element.target_style = target_style;
+
+    cb();
+  };
+  
+  
   // Animate one or more style properties of an element,
-  const NO_STYLE_ARGS = { time:-1, easing:-1, 'default':-1 };
   system_calls.animate = function(args, cb) {
     const element = args.default;
-
-    const anim_to_style = convertToRawStyles(args, NO_STYLE_ARGS);
     const { time, easing } = args;
 
-    console.log("ANIMATE!");
-    console.log("time = ", time);
-    console.log("easing = ", easing);
-    console.log("style = ", anim_to_style);
-    
+    addInterpolations(element.el, element.target_style, time, easing);
+
     cb();
   };
   
@@ -396,11 +486,11 @@ function FrontEnd() {
   };
   sys_obj_constructors.TextTrail = function(args) {
     let ttconfig = mergeConfig({}, DEFAULT_TTRAIL_CONFIG);
-    if (args.font_family) ttconfig.default_font_family = args.font_family;
-    if (args.font_size) ttconfig.default_font_size = args.font_size;
-    if (args.font_color) ttconfig.default_font_color = args.font_color;
-    if (args.width) ttconfig.buffer_width = args.width;
-    if (args.height) ttconfig.buffer_height = args.height;
+    if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
+    if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
+    if (args.font_color !== void 0) ttconfig.default_font_color = args.font_color;
+    if (args.width !== void 0) ttconfig.buffer_width = args.width;
+    if (args.height !== void 0) ttconfig.buffer_height = args.height;
     
     ttconfig = mergeConfig(ttconfig, args);
     console.log(ttconfig);
@@ -424,13 +514,13 @@ function FrontEnd() {
       
       roundedRect(ctx, -(width / 2), -(height / 2), width, height, corner_radius );
       
-      if (fill_style) {
+      if (fill_style !== void 0) {
         ctx.fillStyle = fill_style;
         ctx.fill();
       }
-      if (stroke_style) {
+      if (stroke_style !== void 0) {
         ctx.strokeStyle = stroke_style;
-        if (line_width) {
+        if (line_width !== void 0) {
           ctx.lineWidth = line_width;
         }
         else {
