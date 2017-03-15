@@ -155,7 +155,7 @@ function FrontEnd() {
         if (constant_v === void 0) {
           // Construct the constant variable,
           constant_v = constructConstantDef(ident, constant_v_def);
-          console.log("CREATED CONSTANT: ", ident, "=", constant_v);
+          console.log("CREATED CONSTANT: ", ident, "=", constant_v, "(", typeof constant_v, ")");
         }
         return constant_v;
       }
@@ -189,9 +189,18 @@ function FrontEnd() {
     
     const type = def[0][0];
     let constant_ob;
+    // Static value,
     if (type === 'v') {
       constant_ob = def[0][1];
     }
+    // Inline JavaScript code,
+    else if (type === 'i') {
+      const func_factory = eval.call(null, def[0][1]);
+//      console.log(func_factory);
+//      console.log(typeof func_factory);
+      constant_ob = func_factory;
+    }
+    // Object constructor and mutators,
     else if (type === 'c') {
       const constant_fun_name = def[0][1];
       const constant_params = toJSObject(def[0][2]);
@@ -277,14 +286,16 @@ function FrontEnd() {
           raw_out.rotation = convertRotational(style);
           break;
         case 'x':
+          // PENDING: Deal with multi-orientation display dimensions,
           const xval = doProportional(style, (percent) => {
-            return display_canvas.width * (percent / 100);
+            return 1280 * (percent / 100);
           });
           raw_out.x = xval;
           break;
         case 'y':
+          // PENDING: Deal with multi-orientation display dimensions,
           const yval = doProportional(style, (percent) => {
-            return display_canvas.height * (percent / 100);
+            return 720 * (percent / 100);
           });
           raw_out.y = yval;
           break;
@@ -323,6 +334,15 @@ function FrontEnd() {
     out.el.setRawStyles(raw_styles);
   }
 
+  
+  function copyFields(to_obj, from_obj) {
+    for (let f in from_obj) {
+      if (f !== 'default') {
+        to_obj[f] = from_obj[f];
+      }
+    }
+    return to_obj;
+  }
 
 
   function Interpolation(type, ms_to, canvas_element) {
@@ -358,15 +378,22 @@ function FrontEnd() {
   };
 
   function easingFunction(easing, t, d, b, c) {
-    switch (easing) {
-      case 'no-ease':
-        return noEasing(t, d, b, c);
-      case 'ease-out':
-        return easeOut(t, d, b, c);
-      case 'ease-in':
-        return easeIn(t, d, b, c);
-      default:
-        throw new Error('Unknown easing: ' + easing);
+    // NOTE: duck typing,
+    if (typeof easing === 'function') {
+      return easing(t, b, c, d);
+    }
+    // Assume string,
+    else {
+      switch (easing) {
+        case 'no-ease':
+          return noEasing(t, d, b, c);
+        case 'ease-out':
+          return easeOut(t, d, b, c);
+        case 'ease-in':
+          return easeIn(t, d, b, c);
+        default:
+          throw new Error('Unknown easing: ' + easing);
+      }
     }
   };
 
@@ -509,8 +536,9 @@ function FrontEnd() {
       args,
     }
     const rectangle = vn_screen.createPaintingCanvasElement(args.width, args.height);
+    copyFields(rectangle, args);
     rectangle.draw = function(ctx, vns) {
-      const { width, height, fill_style, stroke_style, line_width, corner_radius } = out.args;
+      const { width, height, fill_style, stroke_style, line_width, corner_radius } = rectangle;
       
       roundedRect(ctx, -(width / 2), -(height / 2), width, height, corner_radius );
       
@@ -551,8 +579,8 @@ function FrontEnd() {
     const main_div = document.getElementById("main");
 
     // PENDING: Handle narrow and wide orientations and different aspect ratios,
-    const std_wid = (1280 * 1).toFixed(0);
-    const std_hei = (720  * 1).toFixed(0);
+    const std_wid = (1280 * 1.1).toFixed(0);
+    const std_hei = (720  * 1.1).toFixed(0);
       
     // Make the canvas element,
     main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
@@ -662,8 +690,8 @@ function startupFunction() {
   
   const main_div = document.getElementById("main");
 
-  const std_wid = (1280 * 1).toFixed(0);
-  const std_hei = (720  * 1).toFixed(0);
+  const std_wid = (1280 * 1.0).toFixed(0);
+  const std_hei = (720  * 1.0).toFixed(0);
   
   // Make the canvas element,
   main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';

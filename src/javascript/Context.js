@@ -122,6 +122,10 @@ function Context(frontend) {
           out.push( [ 'f', mutat[1], convertArgs(mutat[2], true) ] );
         }
       }
+      else if (vtype === 'inline') {
+        const inline = varset[1];
+        out.push( ['i', inline[1], inline[2] ] );
+      }
       else if (vtype === 'value') {
         // Static,
         out.push( [ 'v', varset[1][1] ] );
