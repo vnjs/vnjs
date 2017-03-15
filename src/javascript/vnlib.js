@@ -193,8 +193,8 @@ function VNScreen(canvas_element, config) {
         // Translate the context to the element midpoint,
         resetTransform(ctx);
         ctx.translate(el.x, el.y);
-        ctx.scale(el.scale_x, el.scale_y);
         ctx.rotate(el.rotation);
+        ctx.scale(el.scale_x, el.scale_y);
         ctx.globalAlpha = el.alpha;
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);
