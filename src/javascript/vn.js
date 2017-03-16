@@ -542,8 +542,16 @@ function FrontEnd() {
       
       roundedRect(ctx, -(width / 2), -(height / 2), width, height, corner_radius );
       
-      if (fill_style !== void 0) {
-        ctx.fillStyle = fill_style;
+      const fill_style_type = typeof fill_style;
+      if (fill_style_type !== 'undefined') {
+        if (fill_style_type === 'string') {
+          ctx.fillStyle = fill_style;
+        }
+        else {
+          // This must be an object of type LinearGradient or RadialGradient,
+          // Check object type?
+          ctx.fillStyle = fill_style.val;
+        }
         ctx.fill();
       }
       if (stroke_style !== void 0) {
@@ -560,12 +568,38 @@ function FrontEnd() {
     out.el = rectangle;
     // Set initial canvas style properties,
     setElementStyle(out, args, {});
-//    rectangle.setDrawAlpha(1);
-//    rectangle.setDepth(100);
     return out;
   };
 
-  
+  // Linear gradient object.
+  sys_obj_constructors.LinearGradient = function(args) {
+    const out = {
+      ob: 'LinearGradient',
+      args,
+    }
+    const fill_style = vn_screen.get2DContext().createLinearGradient(
+                          args.x1, args.y1, args.x2, args.y2);
+    out.addColorStop = function(args) {
+      fill_style.addColorStop(args.stop, args.color);
+    };
+    out.val = fill_style;
+    return out;
+  };
+
+  // Radial gradient object.
+  sys_obj_constructors.RadialGradient = function(args) {
+    const out = {
+      ob: 'RadialGradient',
+      args,
+    }
+    const fill_style = vn_screen.get2DContext().createRadialGradient(
+                          args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
+    out.addColorStop = function(args) {
+      fill_style.addColorStop(args.stop, args.color);
+    };
+    out.val = fill_style;
+    return out;
+  };
 
   
   
