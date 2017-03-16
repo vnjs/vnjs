@@ -134,6 +134,9 @@ function VNScreen(canvas_element, config) {
     ctx.resetTransform();
   };
 
+  function get2DContext() {
+    return canvas_2dctx;
+  };
 
 
   // Paints the view layer,
@@ -168,9 +171,18 @@ function VNScreen(canvas_element, config) {
     }
     
     resetTransform(ctx);
-    // Clear the buffer,
-    ctx.fillStyle = '#f0f1f6';
+    // Fill the buffer with transparency squares,
+    ctx.fillStyle = 'hsl(220, 0%, 96%)';
     ctx.fillRect(0, 0, 1280, 720);
+    ctx.fillStyle = 'hsl(220, 0%, 89%)';
+    const SQUARE_SIZE = 64;
+    for (let ty = -1; ty < (720 / SQUARE_SIZE); ++ty) {
+      for (let tx = 0; tx < (1280 / SQUARE_SIZE); ++tx) {
+        if (((tx + ty) & 0x01) === 0) {
+          ctx.fillRect(tx * SQUARE_SIZE, (ty * SQUARE_SIZE) + 8, SQUARE_SIZE, SQUARE_SIZE);
+        }
+      }
+    }
 
     // Make sure the elements are sorted by depth, and add order,
     const len = canvas_elements.length;
@@ -546,6 +558,7 @@ function VNScreen(canvas_element, config) {
 
   // Public API,
   out_vnscreen = {
+    get2DContext,
     preloadFonts,
     getDialogTextTrailFormatter,
     getImage,
