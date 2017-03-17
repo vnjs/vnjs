@@ -1,7 +1,8 @@
 "use strict";
 
-import { isUndefined, createBufferCanvas } from './utils';
+import { isUndefined, mergeConfig } from './utils';
 
+import CanvasElement from './CanvasElement';
 import TextFormatter from './TextFormatter';
 
 // A text trail that is rendered into a buffer and can be
@@ -23,29 +24,38 @@ import TextFormatter from './TextFormatter';
 //   buffer_height:
 //   dx:
 //   dy:
-//   draw_scale:
 //   draw_context:              (optional)
 //
 // }
 
-function TextTrail(config) {
+// TextTrail acts like a CanvasElement.
 
-  let { draw_context, draw_scale, dx, dy, buffer_width, buffer_height, ms_per_word } = config;
+function TextTrail(vn_screen, config) {
+
+  // The CanvasElement we are extending,
+  const ce = CanvasElement();
+  ce.type = 'TEXT_TRAIL';
+  ce.time = 0;
+
+  // Config properties,
+  let { draw_context, dx, dy, buffer_width, buffer_height, ms_per_word } = config;
   const { words_painter } = config;
 
   if (isUndefined(buffer_width) || isUndefined(buffer_height)) {
     throw Error('Must specify width and height');
   }
-  if (isUndefined(draw_scale)) draw_scale = 1;
   if (isUndefined(dx)) dx = 0;
   if (isUndefined(dy)) dy = 0;
   if (isUndefined(ms_per_word)) ms_per_word = 50;
+  
+  ce.width = buffer_width;
+  ce.height = buffer_height;
   
   let buffer_canvas;
 
   // Make a new draw context,
   if (isUndefined(draw_context)) {
-    buffer_canvas = createBufferCanvas(buffer_width * draw_scale, buffer_height * draw_scale);
+    buffer_canvas = vn_screen.createBufferCanvas(buffer_width, buffer_height);
     draw_context = buffer_canvas.getContext('2d');
   }
 
@@ -54,7 +64,6 @@ function TextTrail(config) {
   
   // Populated when the text is measured,
   let text_layout = null;
-  let time_start = -1;
   let drawn_to = -1;
   
   // Measure and layout the text into the area specified by:
@@ -70,8 +79,7 @@ function TextTrail(config) {
 
     const ctx = draw_context;
     // Reset transform,
-    ctx.resetTransform();
-    ctx.scale(draw_scale, draw_scale);
+    vn_screen.resetTransform(ctx);
   
     if (from_point == -1) from_point = 0;
     
@@ -88,7 +96,7 @@ function TextTrail(config) {
       let drawy = dy + word.y;
 
       // Alternative words painter?
-      if (words_painter) {
+      if (!isUndefined(words_painter)) {
         words_painter(ctx, text, style, drawx, drawy, config);
       }
       // Default text paint function,
@@ -139,8 +147,7 @@ function TextTrail(config) {
 
   function clearBufferCanvas() {
     const ctx = draw_context;
-    ctx.resetTransform();
-    ctx.scale(draw_scale, draw_scale);
+    vn_screen.resetTransform(ctx);
     ctx.clearRect(0, 0, buffer_width, buffer_height);
   };
   
@@ -153,7 +160,7 @@ function TextTrail(config) {
   // interpolation, or the last word in the trail.
   function calcInterpolatedAnimationPoint(time) {
     if ( isEmpty() ) return -1;
-    return Math.min(  Math.floor((time - time_start) / ms_per_word),
+    return Math.min(  Math.floor(time / ms_per_word),
                       text_layout.words_ar.length);
   };
   
@@ -164,7 +171,6 @@ function TextTrail(config) {
   // Sets the animation point to the first word of the trail.
   // This causes the buffer to be redrawn in the next paint cycle.
   function resetAnimationPoint() {
-    time_start = performance.now();
     drawn_to = -1;
   };
 
@@ -172,15 +178,25 @@ function TextTrail(config) {
   // next paint cycle.
   function clearAnimation() {
     text_layout = null;
-    time_start = -1;
     drawn_to = -1;
     clearBufferCanvas();
   };
 
-
+  // The CanvasElement draw method,
+  function draw(ctx, out_vnscreen) {
+    // Paint to buffer,
+    paintToBuffer(ce.time);
+    // Paints a raw buffer.
+    out_vnscreen.paintBufferCanvas(ctx, getBufferCanvas(), ce);
+  };
+  
 
   // Public API,
-  return {
+  return mergeConfig(ce, {
+    
+    // For CanvasElement
+    draw,
+    
     measureAndLayoutText,
     paintTextTrail,
     paintToBuffer,
@@ -191,9 +207,8 @@ function TextTrail(config) {
     isRepaintNeeded,
     resetAnimationPoint,
     clearAnimation,
+  });
 
-  };
-  
 }
 
 export default TextTrail;

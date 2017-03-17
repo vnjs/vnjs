@@ -14,16 +14,6 @@ function polyfill2DCanvas() {
   }
 };
 
-// Creates a 'canvas' off-screen buffer with the given absolute
-// width and height.
-function createBufferCanvas(width, height) {
-  const buffer = document.createElement('canvas');
-  buffer.width = Math.ceil(width);
-  buffer.height = Math.ceil(height);
-  return buffer;
-};
-
-
 // Adds all properties from c2 into c1 provided the property
 // name isn't already defined in c1. This function does not modify
 // c2. Only c1 can be changed by this operation.
@@ -73,4 +63,4 @@ function Rectangle(x, y, wid, hei) {
 
 
 export { isUndefined, mergeConfig, polyfill2DCanvas, loadFile,
-         Rectangle, createBufferCanvas };
+         Rectangle };

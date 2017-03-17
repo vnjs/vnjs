@@ -74,37 +74,37 @@ function VNScreen(canvas_element, config) {
   // True when the dialog text trail is being displayed,
   let is_displaying_dialog_trail = false;
 
-  // Text trail dialog coordinates and dimensions,
-  let diag_x = 25;
-  let diag_y = 720 - 20 - 130;
-  let diag_width = 1280 - 50;
-  let diag_height = 134;
-
-  // The dialog text trail that's traditionally drawn at the bottom of the
-  // screen.
-  const dialog_text_trail = TextTrail({
-    
-    default_font_family:    config.default_font_family,
-    default_font_size:      config.default_font_size,
-    default_font_color:     config.default_font_color,
-
-    trail_width:            diag_width - 100 - 100,
-    trail_height:           diag_height,
-    pixels_between_words:   config.pixels_between_words,
-
-    line_height:            config.line_height,
-    first_line_indent:      0,
-
-    draw_text_shadow:       config.text_shadow,
-
-    buffer_width:           1280,
-    buffer_height:          TEXT_TRAIL_BUFFER_HEIGHT,
-    draw_scale:             overall_scale,
-    dx:                     100,
-    dy:                     40,
-    ms_per_word:            config.ms_per_word,
-
-  });
+//  // Text trail dialog coordinates and dimensions,
+//  let diag_x = 25;
+//  let diag_y = 720 - 20 - 130;
+//  let diag_width = 1280 - 50;
+//  let diag_height = 134;
+//
+//  // The dialog text trail that's traditionally drawn at the bottom of the
+//  // screen.
+//  const dialog_text_trail = TextTrail({
+//    
+//    default_font_family:    config.default_font_family,
+//    default_font_size:      config.default_font_size,
+//    default_font_color:     config.default_font_color,
+//
+//    trail_width:            diag_width - 100 - 100,
+//    trail_height:           diag_height,
+//    pixels_between_words:   config.pixels_between_words,
+//
+//    line_height:            config.line_height,
+//    first_line_indent:      0,
+//
+//    draw_text_shadow:       config.text_shadow,
+//
+//    buffer_width:           1280,
+//    buffer_height:          TEXT_TRAIL_BUFFER_HEIGHT,
+//    draw_scale:             overall_scale,
+//    dx:                     100,
+//    dy:                     40,
+//    ms_per_word:            config.ms_per_word,
+//
+//  });
 
   
   
@@ -169,7 +169,10 @@ function VNScreen(canvas_element, config) {
       ctx.clip();
       ctx.closePath();
     }
-    
+
+    // Background image
+    // PENDING: For performance, we should be able to turn the painting of this
+    //   off.
     resetTransform(ctx);
     // Fill the buffer with transparency squares,
     ctx.fillStyle = 'hsl(220, 0%, 96%)';
@@ -197,8 +200,8 @@ function VNScreen(canvas_element, config) {
       sort_depth_before_draw = false;
     }
 
-    // Cycle over the canvas elements,
-    canvas_elements.forEach( (el) => {
+    for (let i = 0; i < len; ++i) {
+      const el = canvas_elements[i];
       // Do we draw the element?
       if (el.alpha > 0) {
         // Yup,
@@ -211,8 +214,8 @@ function VNScreen(canvas_element, config) {
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);
       }
-    });
-
+    }
+    
   };
 
   
@@ -223,12 +226,13 @@ function VNScreen(canvas_element, config) {
 
     // This is the render pipeline.
   
-    // Does the dialog trail need a repaint?
-    const repaint_for_dialog_trail = dialog_text_trail.isRepaintNeeded(time);
+//    // Does the dialog trail need a repaint?
+//    const repaint_for_dialog_trail = dialog_text_trail.isRepaintNeeded(time);
   
     // Exit early if a repaint isn't forced, there's no interpolation anims pending,
     // and the text trail hasn't advanced,
-    if (!repaint_for_dialog_trail &&
+    if (
+//        !repaint_for_dialog_trail &&
         !frame_needs_repaint &&
         active_interpolations.length === 0) {
       // Request again for the next frame,
@@ -253,10 +257,10 @@ function VNScreen(canvas_element, config) {
         if (force_repaint) {
           dirty_areas.push( Rectangle(0, 0, 1280, 720) );
         }
-        if (repaint_for_text_trail) {
-          // The text trial area needs repainting,
-          dirty_areas.push( Rectangle(diag_x, diag_y, diag_width, diag_height) );
-        }
+//        if (repaint_for_text_trail) {
+//          // The text trial area needs repainting,
+//          dirty_areas.push( Rectangle(diag_x, diag_y, diag_width, diag_height) );
+//        }
         // Paint the view layer,
         if (active_interpolations.length != 0 || dirty_areas.length > 0) {
           paintViewLayer(canvas_2dctx, time, dirty_areas);
@@ -266,18 +270,18 @@ function VNScreen(canvas_element, config) {
         paintViewLayer(canvas_2dctx, time, dirty_areas);
       }
 
-      if (!dialog_text_trail.isEmpty()) {
-        // Paint the text trail UI element,
-        dialog_text_trail.paintToBuffer(time);
-
-        // Paint the buffer to the displayed screen,
-        resetToRawTransform(canvas_2dctx);
-        // Paint the text trail buffer,
-        canvas_2dctx.drawImage(dialog_text_trail.getBufferCanvas(),
-                        (0 * overall_scale).toFixed(0),
-                        ((diag_y - 10) * overall_scale).toFixed(0));
-
-      }
+//      if (!dialog_text_trail.isEmpty()) {
+//        // Paint the text trail UI element,
+//        dialog_text_trail.paintToBuffer(time);
+//
+//        // Paint the buffer to the displayed screen,
+//        resetToRawTransform(canvas_2dctx);
+//        // Paint the text trail buffer,
+//        canvas_2dctx.drawImage(dialog_text_trail.getBufferCanvas(),
+//                        (0 * overall_scale).toFixed(0),
+//                        ((diag_y - 10) * overall_scale).toFixed(0));
+//
+//      }
 
     }
     catch (e) {
@@ -302,14 +306,14 @@ function VNScreen(canvas_element, config) {
   // This function preloads the default font. This is necessary so text measurements can be
   // accurately discovered before rendering.
   // Best attempt to call 'cb' when the fonts are loaded.
-  function preloadFonts(cb) {
+  function preloadFont(font_family, cb) {
 
     // A canvas element we use for font metrics
     const ctx = document.createElement('canvas').getContext('2d');
     const styles = ['', 'italic ', 'bold ', 'italic bold '];
     
     styles.forEach( (style) => {
-      ctx.font = style + '10px ' + config.default_font_family;
+      ctx.font = style + '10px ' + font_family;
       const m = ctx.measureText('Hello');
       console.log('PRELOAD ', ctx.font);
     });
@@ -324,6 +328,49 @@ function VNScreen(canvas_element, config) {
   };
 
   // ----- Functions -----
+  
+  // Creates a 'canvas' off-screen buffer with the given width and height.
+  // The returned buffer object is scaled depending on the overall scaling
+  // amount.
+  function createBufferCanvas(width, height) {
+    const buffer = document.createElement('canvas');
+    buffer.width = Math.ceil(width * overall_scale);
+    buffer.height = Math.ceil(height * overall_scale);
+    return buffer;
+  };
+  
+  // Paints a BufferCanvas to the screen. Any transforms specified in 'canvas_element'
+  // are applied before drawing the buffer. Note that this function attempts to align
+  // canvas against the raw pixel alignment.
+  function paintBufferCanvas(ctx, canvas, ce) {
+    resetToRawTransform(ctx);
+    
+    if (ce.rotation === 0 && ce.scale_x === 1 && ce.scale_y === 1) {
+      // Translate to the midpoint,
+      ctx.translate( ~~(ce.x * overall_scale),
+                     ~~(ce.y * overall_scale) );
+      ctx.globalAlpha = ce.alpha;
+      // Draw the buffer,
+      ctx.drawImage(canvas,
+                    ~~(-(canvas.width / 2)),
+                    ~~(-(canvas.height / 2)) );
+    }
+    else {
+      // Translate to the midpoint,
+      ctx.translate( ce.x * overall_scale,
+                     ce.y * overall_scale );
+      ctx.rotate( ce.rotation );
+      ctx.scale( ce.scale_x, ce.scale_y );
+      ctx.globalAlpha = ce.alpha;
+      // Draw the buffer,
+      ctx.drawImage(canvas,
+                    -(canvas.width / 2),
+                    -(canvas.height / 2) );
+    }
+    
+  };
+  
+  
   
   // Returns a dialog text trail formatter for the dialog bar.
   function getDialogTextTrailFormatter() {
@@ -449,20 +496,24 @@ function VNScreen(canvas_element, config) {
   function notifyDoSortDepthBeforeDraw() {
     sort_depth_before_draw = true;
   };
-  
-  // Creates a new canvas element and adds it to the list of all elements currently
-  // active on the current canvas.
-  function createCanvasElement() {
-    const el = CanvasElement();
-    canvas_elements.push(el);
+
+  // Adds a canvas element to the list of canvas elements being drawn on the screen,
+  function addCanvasElement(ce) {
+    canvas_elements.push(ce);
     notifyDoSortDepthBeforeDraw();
     // Force full repaint when we add and remove canvas elements,
     repaint();
-    return el;
+    return ce;
   };
-  
+
+  // Creates a new canvas element and adds it to the list of all elements currently
+  // active on the current canvas.
+  function createCanvasElement() {
+    return addCanvasElement( CanvasElement() );
+  };
+
   const NOOP_DRAW = function(ctx, vnscreen) { };
-  
+
   function createPaintingCanvasElement(width, height) {
     const el = createCanvasElement();
     el.type = 'PAINTING';
@@ -559,17 +610,22 @@ function VNScreen(canvas_element, config) {
   // Public API,
   out_vnscreen = {
     get2DContext,
-    preloadFonts,
+    preloadFont,
     getDialogTextTrailFormatter,
     getImage,
     loadImages,
     repaint,
+    
+    resetTransform,
+    createBufferCanvas,
+    paintBufferCanvas,
 
     printDialogText,
     clearDialogText,
 
     addInterpolation,
     notifyDoSortDepthBeforeDraw,
+    addCanvasElement,
     createCanvasElement,
     createPaintingCanvasElement,
     createStaticImageCanvasElement,

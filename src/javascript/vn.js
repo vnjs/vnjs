@@ -496,8 +496,9 @@ function FrontEnd() {
   
   
   // Preloads fonts,
-  system_calls.preloadFonts = function(args, cb) {
-    vn_screen.preloadFonts(cb);
+  system_calls.preloadFont = function(args, cb) {
+    const font_family = args.default;
+    vn_screen.preloadFont(font_family, cb);
   };
 
 
@@ -521,7 +522,12 @@ function FrontEnd() {
     
     ttconfig = mergeConfig(ttconfig, args);
     console.log(ttconfig);
-    const text_trail = TextTrail(ttconfig);
+    const text_trail = TextTrail(vn_screen, ttconfig);
+    vn_screen.addCanvasElement(text_trail);
+    
+    text_trail.time = 10000;
+    text_trail.measureAndLayoutText('Hello World!');
+    
     return {
       ob: 'TextTrail',
       args,
