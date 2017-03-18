@@ -74,40 +74,6 @@ function VNScreen(canvas_element, config) {
   // True when the dialog text trail is being displayed,
   let is_displaying_dialog_trail = false;
 
-//  // Text trail dialog coordinates and dimensions,
-//  let diag_x = 25;
-//  let diag_y = 720 - 20 - 130;
-//  let diag_width = 1280 - 50;
-//  let diag_height = 134;
-//
-//  // The dialog text trail that's traditionally drawn at the bottom of the
-//  // screen.
-//  const dialog_text_trail = TextTrail({
-//    
-//    default_font_family:    config.default_font_family,
-//    default_font_size:      config.default_font_size,
-//    default_font_color:     config.default_font_color,
-//
-//    trail_width:            diag_width - 100 - 100,
-//    trail_height:           diag_height,
-//    pixels_between_words:   config.pixels_between_words,
-//
-//    line_height:            config.line_height,
-//    first_line_indent:      0,
-//
-//    draw_text_shadow:       config.text_shadow,
-//
-//    buffer_width:           1280,
-//    buffer_height:          TEXT_TRAIL_BUFFER_HEIGHT,
-//    draw_scale:             overall_scale,
-//    dx:                     100,
-//    dy:                     40,
-//    ms_per_word:            config.ms_per_word,
-//
-//  });
-
-  
-  
   
   
   let frame_needs_repaint = true;
@@ -115,6 +81,8 @@ function VNScreen(canvas_element, config) {
   let scaling_factor = 720 / (1024 * 1.1);
 //  console.log("Scaling Factor: ", scaling_factor);
   
+  let time_framestamp_valid = false;
+  let cur_time_framestamp = -1;
   
   
   // Maps image id to Image object,
@@ -138,6 +106,18 @@ function VNScreen(canvas_element, config) {
     return canvas_2dctx;
   };
 
+  // Returns a time framestamp that represents a time frame of reference for a frame that
+  // would start now. This value is reset in the next draw call. This is necessary so that
+  // grouped elements that start animating at the same time are synchronized correctly and
+  // not offset by the few microseconds it takes to set up the animations.
+  function getTimeFramestampNow() {
+    if (!time_framestamp_valid) {
+      time_framestamp_valid = true;
+      cur_time_framestamp = performance.now();
+    }
+    return cur_time_framestamp;
+  };
+  
 
   // Paints the view layer,
   function paintViewLayer(ctx, time, dirty_areas) {
@@ -224,16 +204,13 @@ function VNScreen(canvas_element, config) {
   // paint the canvas as appropriate.
   function drawCall(time) {
 
-    // This is the render pipeline.
+    time_framestamp_valid = false;
   
-//    // Does the dialog trail need a repaint?
-//    const repaint_for_dialog_trail = dialog_text_trail.isRepaintNeeded(time);
+    // This is the render pipeline.
   
     // Exit early if a repaint isn't forced, there's no interpolation anims pending,
     // and the text trail hasn't advanced,
-    if (
-//        !repaint_for_dialog_trail &&
-        !frame_needs_repaint &&
+    if (!frame_needs_repaint &&
         active_interpolations.length === 0) {
       // Request again for the next frame,
       window.requestAnimationFrame(drawCall);
@@ -269,19 +246,6 @@ function VNScreen(canvas_element, config) {
       else {
         paintViewLayer(canvas_2dctx, time, dirty_areas);
       }
-
-//      if (!dialog_text_trail.isEmpty()) {
-//        // Paint the text trail UI element,
-//        dialog_text_trail.paintToBuffer(time);
-//
-//        // Paint the buffer to the displayed screen,
-//        resetToRawTransform(canvas_2dctx);
-//        // Paint the text trail buffer,
-//        canvas_2dctx.drawImage(dialog_text_trail.getBufferCanvas(),
-//                        (0 * overall_scale).toFixed(0),
-//                        ((diag_y - 10) * overall_scale).toFixed(0));
-//
-//      }
 
     }
     catch (e) {
@@ -343,8 +307,11 @@ function VNScreen(canvas_element, config) {
   // are applied before drawing the buffer. Note that this function attempts to align
   // canvas against the raw pixel alignment.
   function paintBufferCanvas(ctx, canvas, ce) {
+    // Reset to the raw scaling of the input context,
     resetToRawTransform(ctx);
     
+    // If there's no rotation or scaling then we align the translation to the
+    // floor'd pixel value. This prevents the buffer draw being alias'd
     if (ce.rotation === 0 && ce.scale_x === 1 && ce.scale_y === 1) {
       // Translate to the midpoint,
       ctx.translate( ~~(ce.x * overall_scale),
@@ -357,15 +324,15 @@ function VNScreen(canvas_element, config) {
     }
     else {
       // Translate to the midpoint,
-      ctx.translate( ce.x * overall_scale,
-                     ce.y * overall_scale );
+      ctx.translate( (ce.x * overall_scale),
+                     (ce.y * overall_scale) );
       ctx.rotate( ce.rotation );
       ctx.scale( ce.scale_x, ce.scale_y );
       ctx.globalAlpha = ce.alpha;
       // Draw the buffer,
       ctx.drawImage(canvas,
-                    -(canvas.width / 2),
-                    -(canvas.height / 2) );
+                    (-(canvas.width / 2)),
+                    (-(canvas.height / 2)) );
     }
     
   };
@@ -551,64 +518,13 @@ function VNScreen(canvas_element, config) {
   
   
   
-  
-  
-  
-//  // ----- Scene handling -----
-//  
-//  let timout_function = null;
-//
-//  
-//  
-//
-//  function playScene(scene_function, props) {
-//    const scene = Scene(out_vnscreen, scene_function);
-//    
-//    function process_scene_frame() {
-//      // Clear the frame state for the user code,
-//      scene.clearFrame();
-//
-//      // Go to user code,
-//      scene_function(scene, props);
-//
-//      if (is_displaying_dialog_trail) {
-//        if (!scene.isDisplayingTextTrail()) {
-//          config.text_trail_exit(scene, props);
-//          clearDialogText();
-//          is_displaying_dialog_trail = false;
-//        }
-//      }
-//      else {
-//        if (scene.isDisplayingTextTrail()) {
-//          config.text_trail_enter(scene, props);
-//          is_displaying_dialog_trail = true;
-//        }
-//      }
-//      
-//      // Get the next frame transition type,
-//      const next_ftt = scene.getNextFrameTransitionType();
-//      const next_ftp = scene.getNextFrameTransitionParams();
-//      
-//      if (next_ftt === Scene.STATICS.INTERRUPTABLE_PAUSE) {
-//        setTimeout(process_scene_frame, next_ftp[0]);
-//      }
-//      else if (next_ftt === Scene.STATICS.WAIT_UNTIL_INTERACT) {
-//        
-//      }
-//      else {
-//        console.log("Unknown frame transition type: ", next_ftt);
-//      }
-//
-//    };
-//    
-//    setTimeout(process_scene_frame, 10);
-//  };
-
-
 
 
   // Public API,
   out_vnscreen = {
+    
+    getTimeFramestampNow,
+    
     get2DContext,
     preloadFont,
     getDialogTextTrailFormatter,
@@ -629,7 +545,7 @@ function VNScreen(canvas_element, config) {
     createCanvasElement,
     createPaintingCanvasElement,
     createStaticImageCanvasElement,
-//    playScene,
+
   };
   return out_vnscreen;
 

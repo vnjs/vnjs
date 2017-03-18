@@ -346,7 +346,7 @@ function FrontEnd() {
 
 
   function Interpolation(type, ms_to, canvas_element) {
-    let time_start = performance.now();
+    let time_start = vn_screen.getTimeFramestampNow();
     return {
       type,
       time_start,
@@ -526,13 +526,19 @@ function FrontEnd() {
     vn_screen.addCanvasElement(text_trail);
     
     text_trail.time = 10000;
-    text_trail.measureAndLayoutText('Hello World!');
+    text_trail.measureAndLayoutText('Hey, I\'m writing some text to see if it fits! It seems to fit and it\'s center aligning!');
     
-    return {
+    const out = {
       ob: 'TextTrail',
       args,
       el: text_trail,
     };
+    
+    // Set initial canvas style properties,
+    setElementStyle(out, args,
+        { default_font_family:-1, default_font_size:-1, default_font_color:-1,
+          buffer_width:-1, buffer_height:-1 } );
+    return out;
   };
 
   // Rectangle object.
@@ -619,8 +625,8 @@ function FrontEnd() {
     const main_div = document.getElementById("main");
 
     // PENDING: Handle narrow and wide orientations and different aspect ratios,
-    const std_wid = (1280 * 1.1).toFixed(0);
-    const std_hei = (720  * 1.1).toFixed(0);
+    const std_wid = (1280 * 1).toFixed(0);
+    const std_hei = (720  * 1).toFixed(0);
       
     // Make the canvas element,
     main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
