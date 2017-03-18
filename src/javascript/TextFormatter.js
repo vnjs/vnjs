@@ -35,6 +35,22 @@ const isBreaker = (ob) => ( ob.binstance === BREAKER_STR );
 
 
 
+// config = {
+//
+//   default_font_family: 'san-serif',
+//   default_font_size:   '25px',
+//   default_font_color:  '#000010',
+//
+//   line_height:         [float]
+//   first_line_indent:   [float]
+//   pixels_between_words:[float]
+//   trail_width:         [float]
+//   trail_height:        [float]
+//   text_halign:         "center" | "right",
+//
+// }
+
+
 function TextFormatter(config) {
 
   // Generate a style object depending on the styles currently on the stack.
@@ -224,7 +240,19 @@ function TextFormatter(config) {
     const line_height = config.line_height ? config.line_height : 30;
     const first_line_indent = config.first_line_indent ? config.first_line_indent : 0;
 
-    for (let i = 0; i < text_measures.length; ++i) {
+    function handleLineEnd(start, end) {
+      if (config.text_halign === 'center') {
+        const left_off = (width - line_width) / 2;
+        for (let n = start; n < end; ++n) {
+          words_ar[n].x += left_off;
+        }
+      }
+    };
+
+    let line_width = 0;
+    let line_start_i = 0;
+    let i = 0;
+    for (; i < text_measures.length; ++i) {
 
       const v = text_measures[i];
       if (isBreaker(v)) {
@@ -235,9 +263,12 @@ function TextFormatter(config) {
 
         if (x + measure_width > width && !line_start) {
           // New line,
+          handleLineEnd(line_start_i, words_ar.length, line_width);
+
           x = first_line_indent;
           y += line_height;
           line_start = true;
+          line_start_i = words_ar.length;
 
           if (y + line_height > height) {
             out.text_measures = text_measures.slice(i);
@@ -251,10 +282,14 @@ function TextFormatter(config) {
 
         words_ar.push( WordLayout(v, x, y) );
         x += measure_width;
+        line_width = x;
 
       }
 
     }
+    
+    handleLineEnd(line_start_i, words_ar.length, line_width);
+
     out.text_measures = [];
     return out;
   };
