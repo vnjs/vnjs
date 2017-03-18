@@ -36,6 +36,7 @@ function TextTrail(vn_screen, config) {
   const ce = CanvasElement();
   ce.type = 'TEXT_TRAIL';
   ce.time = 0;
+  ce.word_count = 0;
 
   // Config properties,
   let { draw_context, dx, dy, buffer_width, buffer_height, ms_per_word } = config;
@@ -70,6 +71,7 @@ function TextTrail(vn_screen, config) {
   //    [ trail_width, trail_height ]
   function measureAndLayoutText(text) {
     text_layout = text_measurer.measureAndLayout(text);
+    ce.word_count = text_layout.words_ar.length;
     clearBufferCanvas();
   };
   
@@ -139,6 +141,12 @@ function TextTrail(vn_screen, config) {
     }
   };
 
+  // Returns the total number of microseconds necessary to complete the
+  // current text loaded into this text trail.
+  function getTotalTimeMS() {
+    return (ce.word_count * ms_per_word);
+  };
+  
   // Returns the canvas buffer where the text is painted in the
   // 'paintTextTrail' method.
   function getBufferCanvas() {
@@ -198,11 +206,11 @@ function TextTrail(vn_screen, config) {
     draw,
     
     measureAndLayoutText,
-    paintTextTrail,
-    paintToBuffer,
     getBufferCanvas,
     clearBufferCanvas,
     isEmpty,
+    
+    getTotalTimeMS,
     
     isRepaintNeeded,
     resetAnimationPoint,
