@@ -143,9 +143,11 @@ function FrontEnd() {
   let vn_screen;
   let display_canvas;
   const config = {};
-  
-  
-  
+
+  // Map of all text trails currently available,
+  let text_trail_element_map = { };
+
+
   const property_resolver = {
     getV: function(ident) {
       // Is it a constant?
@@ -434,6 +436,20 @@ function FrontEnd() {
 
   }
   
+  // ----- JavaScript API -----
+  
+  // Sets a named text trail. Use a name of 'default' to set the default text
+  // trail.
+  function setTextTrail(name, text_trail) {
+    if (text_trail === void 0 || text_trail.ob !== 'TextTrail') {
+      throw Error('Assert failed: expecting a text trail object');
+    }
+    text_trail_element_map[name] = text_trail
+  }
+  
+  function getTextTrail(name) {
+    return text_trail_element_map[name];
+  }
   
   
   // ---- System API calls ----
@@ -446,9 +462,6 @@ function FrontEnd() {
   system_calls.preloadAssets = function(args, cb) {
     const to_preload = args.default;
     console.log("PENDING: preloadAssets for: ", to_preload);
-    
-    
-    
     cb();
   };
   
@@ -456,7 +469,18 @@ function FrontEnd() {
   // Set the default text trail (where announcements go)
   system_calls.setDefaultTextTrail = function(args, cb) {
     const text_trail = args.default;
-    console.log("PENDING: setDefaultTextTrail: ", text_trail);
+
+    // Set the default text trail,
+    setTextTrail('default', text_trail);
+    cb();
+  };
+  
+  // Sets a named text trail,
+  system_calls.setTextTrail = function(args, cb) {
+    const text_trail = args.default;
+    const tt_name = args.name;
+    
+    setTextTrail(tt_name, text_trail);
     cb();
   };
   
@@ -482,7 +506,6 @@ function FrontEnd() {
     cb();
   };
   
-  
   // Animate one or more style properties of an element,
   system_calls.animate = function(args, cb) {
     const element = args.default;
@@ -493,6 +516,28 @@ function FrontEnd() {
     cb();
   };
   
+  // Announce text on the default text trail,
+  system_calls.announce = function(args, cb) {
+    const text = args.default;
+    let trail_target = args.trail;
+    if (trail_target === void 0) {
+      trail_target = 'default';
+    }
+    const text_trail = getTextTrail(trail_target);
+
+    // Measure and format the text to be displayed,
+    text_trail.el.measureAndLayoutText(text);
+
+    // How long will it take to display this layout?
+    const time_to_complete = text_trail.el.getTotalTimeMS();
+
+    const dstyle = { time: time_to_complete };
+    addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
+
+    text_trail.el.time = time_to_complete;
+    cb();
+  };
+
   
   
   // Preloads fonts,
@@ -513,27 +558,24 @@ function FrontEnd() {
     line_height: 30
   };
   sys_obj_constructors.TextTrail = function(args) {
-    let ttconfig = mergeConfig({}, DEFAULT_TTRAIL_CONFIG);
+    let ttconfig = {};
     if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
     if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
     if (args.font_color !== void 0) ttconfig.default_font_color = args.font_color;
     if (args.width !== void 0) ttconfig.buffer_width = args.width;
     if (args.height !== void 0) ttconfig.buffer_height = args.height;
-    
+
     ttconfig = mergeConfig(ttconfig, args);
-    console.log(ttconfig);
+    ttconfig = mergeConfig(ttconfig, DEFAULT_TTRAIL_CONFIG);
     const text_trail = TextTrail(vn_screen, ttconfig);
     vn_screen.addCanvasElement(text_trail);
-    
-    text_trail.time = 10000;
-    text_trail.measureAndLayoutText('Hey, I\'m writing some text to see if it fits! It seems to fit and it\'s center aligning!');
-    
+
     const out = {
       ob: 'TextTrail',
       args,
       el: text_trail,
     };
-    
+
     // Set initial canvas style properties,
     setElementStyle(out, args,
         { default_font_family:-1, default_font_size:-1, default_font_color:-1,
