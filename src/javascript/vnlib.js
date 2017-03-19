@@ -115,8 +115,6 @@ function VNScreen(canvas_window_element, config) {
   // clicked or pressed a key when the canvas has focus and modal capture
   // is not currently active.
   function doInteractEvent() {
-    // Any active interpolations are completed,
-    completeAllInterpolations();
     // If there are any interact callbacks, then call them now,
     if (interact_callback !== void 0) {
       const callback = interact_callback;
@@ -125,8 +123,33 @@ function VNScreen(canvas_window_element, config) {
     }
   };
 
+  // API function; On interact event calls the given 'callback' function.
   function setInteractCallback(callback) {
-    interact_callback = callback;
+    const lcb = () => {
+      // Any active interpolations are completed,
+      completeAllInterpolations();
+      callback();
+    };
+    interact_callback = lcb;
+  };
+
+  // API function; On interact event calls the given 'callback' function or
+  //   calls it after the given timeout (in seconds) has passed.
+  function setInteractOrWaitCallback(seconds_wait, callback) {
+    let callback_called = false;
+    const lcb = () => {
+      if (!callback_called) {
+        // Any active interpolations are completed,
+        completeAllInterpolations();
+        callback_called = true;
+        callback();
+      }
+    };
+    
+    // Either the callback happens on interaction, or the timeout
+    // causes it.
+    setTimeout( lcb, (seconds_wait * 1000) );
+    interact_callback = lcb;
   };
 
   function resetTransform(ctx) {
@@ -570,6 +593,7 @@ function VNScreen(canvas_window_element, config) {
   out_vnscreen = {
 
     setInteractCallback,
+    setInteractOrWaitCallback,
     getTimeFramestampNow,
 
     get2DContext,

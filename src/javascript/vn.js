@@ -523,9 +523,13 @@ function FrontEnd() {
       trail_target = 'default';
     }
     // After, should we wait for interaction? (default: wait on interact)
-    let wait_on = args.wait_on;
-    if (wait_on === void 0) {
-      wait_on = 'interact';
+    let until = args.until;
+    let continueAfter = args.continueAfter;
+    if (until === void 0) {
+      until = 'interact';
+    }
+    else if (util === 'interactOrWait') {
+      until = 'interact';
     }
 
     const text_trail = getTextTrail(trail_target);
@@ -543,12 +547,20 @@ function FrontEnd() {
     // Start the animation interpolation,
     addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
 
-//    console.log(text_trail.el.time);
-//    console.log(text_trail.el.time);
-    
     // Do we wait on interact?
-    if (wait_on === 'interact') {
-      vn_screen.setInteractCallback(cb);
+    if (until === 'interact') {
+      const finish_cb = () => {
+        // Clear the animation before we callback after interact,
+        text_trail.el.clearAnimation();
+        cb();
+      };
+      
+      if (continueAfter === void 0) {
+        vn_screen.setInteractCallback(finish_cb);
+      }
+      else {
+        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+      }
     }
     // No, so continue to next instruction,
     else {
