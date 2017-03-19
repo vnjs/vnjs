@@ -168,6 +168,7 @@ function $(o) {
 var grammar = {
     ParserRules: [
     {"name": "vnjs", "symbols": ["baseStatements", "_"], "postprocess": nth(0)},
+    {"name": "general_expression", "symbols": ["_", "expression", "_"], "postprocess": nth(1)},
     {"name": "_$ebnf$1", "symbols": []},
     {"name": "_$ebnf$1$subexpression$1", "symbols": [WHITESPACE]},
     {"name": "_$ebnf$1$subexpression$1", "symbols": [COMMENT]},

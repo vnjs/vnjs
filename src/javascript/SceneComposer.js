@@ -152,8 +152,6 @@ function SceneComposer() {
     return p;
   }
 
-
-
   // Expose all these functions to parser and code_source,
   function CodeParser(filename, parser, code_source) {
     
@@ -161,6 +159,79 @@ function SceneComposer() {
     
     function calcAddress(loc) {
       return tokens[loc][2];
+    }
+
+    // Converts string into string expression if necessary. For example,
+    // 'Hello ${player_name}.' converts to ('Hello ' + p.getV('player_name') + '.')
+    function toStringExpr(in_tok, stats) {
+      let out = '';
+      const str = in_tok.v;
+      const len = str.length;
+      let ignore_next = false;
+      let str_quotes = str.charAt(0);
+      let sp = 1;
+      let block_start = -1;
+      for (let i = 1; i < len - 1; ++i) {
+        const ch = str.charAt(i);
+        if (ch === '\\') {
+          ignore_next = true;
+        }
+        else if (ignore_next === false && ch === '$') {
+          if (str.charAt(i + 1) === '{') {
+            block_start = i;
+          }
+        }
+        else if (ch === '}' && block_start >= 0) {
+          // Process the expression,
+          const lhs = str_quotes + str.substring(sp, block_start) + str_quotes;
+          const expression_str = str.substring(block_start + 2, i);
+
+          // Tokenize and parse the expression.
+          // If there's an error, we report the string location as the error.
+          const st = Tokenizer(expression_str);
+          const tokens = st.getTokens();
+          // Create a Parser object from our grammar.
+          // PERFORMANCE: Couldn't we reuse a 'nearley.Parser' instance for parsing
+          //   these (usually) very small expression strings?
+          const expression_parser =
+                        new nearley.Parser(grammar.ParserRules, 'general_expression');
+          try {
+            expression_parser.feed(tokens);
+            if (expression_parser.results.length === 0) {
+              // Not terminated,
+              throw Error("Parse error; Unexpected end of expression");
+            }
+          }
+          catch (parse_e) {
+            console.log(expression_parser);
+            const position = calculateScriptPosition(code_source, calcAddress(in_tok.loc));
+            let error_str = "Parse error; ";
+            if (!filename) {
+              filename = '[EVAL]';
+            }
+            error_str += filename + ":" + position.line + ":" + position.column;
+            throw Error(error_str);
+          }
+
+          // Form the expression,
+          const res = expression_parser.results[0];
+          out += lhs + " + (" + expr(res, stats) + ") + ";
+
+          sp = i + 1;
+          block_start = -1;
+        }
+        ignore_next = false;
+      }
+
+      // If no expressions found,
+      if (sp === 1) {
+        return str;
+      }
+      else {
+        out += str_quotes + str.substring(sp, len);
+        return out;
+      }
+
     }
 
     function expr(p, stats) {
@@ -179,7 +250,7 @@ function SceneComposer() {
           case 'BOOLEAN':
             return v.toString();
           case 'STRING':
-            return v;
+            return toStringExpr(p, stats);
           case 'NULL':
             return "null";
           case '(':

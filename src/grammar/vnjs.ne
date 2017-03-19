@@ -51,6 +51,10 @@
 
 vnjs -> baseStatements _ {% nth(0) %}
 
+general_expression -> _ expression _ {% nth(1) %}
+
+
+
 
 ##### TOKENS START
 
