@@ -157,7 +157,7 @@ function FrontEnd() {
         if (constant_v === void 0) {
           // Construct the constant variable,
           constant_v = constructConstantDef(ident, constant_v_def);
-          console.log("CREATED CONSTANT: ", ident, "=", constant_v, "(", typeof constant_v, ")");
+//          console.log("CREATED CONSTANT: ", ident, "=", constant_v, "(", typeof constant_v, ")");
         }
         return constant_v;
       }
@@ -198,8 +198,6 @@ function FrontEnd() {
     // Inline JavaScript code,
     else if (type === 'i') {
       const func_factory = eval.call(null, def[0][1]);
-//      console.log(func_factory);
-//      console.log(typeof func_factory);
       constant_ob = func_factory;
     }
     // Object constructor and mutators,
@@ -405,7 +403,7 @@ function FrontEnd() {
   // for 'time' seconds and uses the given easing function.
   function addInterpolations(el, target_styles, time, easing) {
     
-    console.log("ANIMATE:", el, target_styles, time, easing);
+//    console.log("ANIMATE:", el, target_styles, time, easing);
     
     if (easing === void 0) {
       easing = 'no-ease';
@@ -520,22 +518,43 @@ function FrontEnd() {
   system_calls.announce = function(args, cb) {
     const text = args.default;
     let trail_target = args.trail;
+    // The target trail to make the announcement,
     if (trail_target === void 0) {
       trail_target = 'default';
     }
+    // After, should we wait for interaction? (default: wait on interact)
+    let wait_on = args.wait_on;
+    if (wait_on === void 0) {
+      wait_on = 'interact';
+    }
+
     const text_trail = getTextTrail(trail_target);
 
     // Measure and format the text to be displayed,
+    text_trail.el.resetAnimationPoint();
     text_trail.el.measureAndLayoutText(text);
 
     // How long will it take to display this layout?
     const time_to_complete = text_trail.el.getTotalTimeMS();
 
+    // The interpolation target,
+    text_trail.el.time = 0;
     const dstyle = { time: time_to_complete };
+    // Start the animation interpolation,
     addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
 
-    text_trail.el.time = time_to_complete;
-    cb();
+//    console.log(text_trail.el.time);
+//    console.log(text_trail.el.time);
+    
+    // Do we wait on interact?
+    if (wait_on === 'interact') {
+      vn_screen.setInteractCallback(cb);
+    }
+    // No, so continue to next instruction,
+    else {
+      cb();
+    }
+
   };
 
   
@@ -671,7 +690,7 @@ function FrontEnd() {
     const std_hei = (720  * 1).toFixed(0);
       
     // Make the canvas element,
-    main_div.innerHTML = '<canvas id="vnBodyCanvas" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
+    main_div.innerHTML = '<canvas id="vnBodyCanvas" tabindex="1" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
 
     display_canvas = document.getElementById("vnBodyCanvas");
     vn_screen = VNScreen(display_canvas, config);
@@ -705,7 +724,7 @@ function FrontEnd() {
       syscall(toJSObject(args), cb);
     }
     else {
-      console.log("frontend.execCall ", ident, args);
+      console.log("PENDING: frontend.execCall ", ident, args);
       cb( null, { status:'callret' } );
     }
 
