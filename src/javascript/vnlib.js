@@ -38,7 +38,7 @@ const DEF_CONFIG = {
 };
 
 // VNScreen factory function,
-function VNScreen(canvas_element, config) {
+function VNScreen(canvas_window_element, config) {
   
   if (this instanceof VNScreen) throw new Error("Not a class");
   
@@ -52,7 +52,7 @@ function VNScreen(canvas_element, config) {
   // The VNScreen object output,
   let out_vnscreen;
 
-  const overall_scale = canvas_element.height / 720;
+  const overall_scale = canvas_window_element.height / 720;
 
   // The height of the text trail buffer.
   const TEXT_TRAIL_BUFFER_HEIGHT = 200;
@@ -84,13 +84,51 @@ function VNScreen(canvas_element, config) {
   let time_framestamp_valid = false;
   let cur_time_framestamp = -1;
   
+  // Called and cleared when an interact event happens,
+  let interact_callback;
+  
   
   // Maps image id to Image object,
   const images_map = {};
   
   // The HTML5 Canvas 2D context,
-  const canvas_2dctx = canvas_element.getContext("2d");
+  const canvas_2dctx = canvas_window_element.getContext("2d");
+
+
+  // Event capture,
+  canvas_window_element.focus();
+  canvas_window_element.addEventListener( 'mousedown', (evt) => {
+    // Capture the focus immediately when clicked,
+    canvas_window_element.focus();
+  }, false );
+  canvas_window_element.addEventListener( 'mouseup', (evt) => {
+    // On mouse up,
+    doInteractEvent();
+  }, false );
   
+  canvas_window_element.addEventListener( 'keydown', (evt) => {
+    // On key press,
+    doInteractEvent();
+  }, true );
+
+  // Called when the user actives a generic 'interact' event. The user
+  // clicked or pressed a key when the canvas has focus and modal capture
+  // is not currently active.
+  function doInteractEvent() {
+    // Any active interpolations are completed,
+    completeAllInterpolations();
+    // If there are any interact callbacks, then call them now,
+    if (interact_callback !== void 0) {
+      const callback = interact_callback;
+      interact_callback = void 0;
+      callback();
+    }
+  };
+
+  function setInteractCallback(callback) {
+    interact_callback = callback;
+  };
+
   function resetTransform(ctx) {
     ctx.globalAlpha = 1.0;
     ctx.resetTransform();
@@ -434,6 +472,14 @@ function VNScreen(canvas_element, config) {
   
   // ----- Transition animations -----
 
+  function completeAllInterpolations() {
+    active_interpolations.forEach( (i) => {
+      i.complete();
+    });
+    active_interpolations.length = 0;
+    frame_needs_repaint = true;
+  };
+  
   function addInterpolation(i, ms_to) {
     // On timeout then set interpolation final result,
     const timeout_function = function() {
@@ -522,9 +568,10 @@ function VNScreen(canvas_element, config) {
 
   // Public API,
   out_vnscreen = {
-    
+
+    setInteractCallback,
     getTimeFramestampNow,
-    
+
     get2DContext,
     preloadFont,
     getDialogTextTrailFormatter,
