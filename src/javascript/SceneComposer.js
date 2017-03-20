@@ -203,7 +203,6 @@ function SceneComposer() {
             }
           }
           catch (parse_e) {
-            console.log(expression_parser);
             const position = calculateScriptPosition(code_source, calcAddress(in_tok.loc));
             let error_str = "Parse error; ";
             if (!filename) {
@@ -758,18 +757,44 @@ function SceneComposer() {
 
         }
 
+        function checkNoRefCalls() {
+          // Syntax error if there's call references here,
+          if (varop.length > 2) {
+            const nsrc_pos = varop[2][0];
+            syntaxError("Context call not allowed ", filename, nsrc_pos);
+          }
+        }
+        
         const var_refs = [];
-        if (vop[0] === 'function') {
+        const ttype = vop[0];
+        if (ttype === 'function') {
+          // Syntax error if there are ref calls on this constant,
+          checkNoRefCalls();
           // The list of variables this function references,
           vop[2].forEach( (v) => {
             var_refs.push( [v, src_pos] );
           });
-          
         }
-        else if (vop[0] === 'call') {
+        else if (ttype === 'call') {
+          // Handle ref calls,
           addCallRefs(vop, src_pos, var_refs);
           for (let i = 2; i < varop.length; ++i) {
             addCallRefs(varop[i][1], varop[i][0], var_refs);
+          }
+        }
+        else if (ttype === 'inline') {
+          // Inline function may have ref calls,
+          for (let i = 2; i < varop.length; ++i) {
+            addCallRefs(varop[i][1], varop[i][0], var_refs);
+          }
+        }
+        else {
+          if (ttype === 'value') {
+            // Syntax error if there are ref calls on this constant,
+            checkNoRefCalls();
+          }
+          else {
+            throw new Error('Unhandled type: ' + ttype);
           }
         }
         

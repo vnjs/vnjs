@@ -166,9 +166,53 @@ function FrontEnd() {
       }
     }
   };
-  
+
+  // Returns a JavaScript typed value given the value from the
+  // back end.
+  function toValue(vob) {
+    if (vob.v !== void 0) {
+      return vob.v;
+    }
+    else {
+      const res = function_load_map[vob.f](property_resolver);
+      // Process the result. If an object is returned then handle specially,
+      if (typeof res === 'object') {
+        if (res.type === 'c') {
+          return res.obj;
+        }
+        else if (res.type === 'i') {
+          // The constants this inline function is permitted to access,
+          const constants_access = res.constants_access;
+          // The function to call,
+          const call_fun = res.func;
+          // If there's no access to constants allowed then just return the
+          // function,
+          if (constants_access.length === 0) {
+            return call_fun;
+          }
+          // Otherwise wrap the function,
+          else {
+            return function() {
+              // Look at arg '1' and if it's an instance of UContext then
+              // pass it the constants access object,
+              const arg1 = arguments[1];
+              if (arg1 !== void 0 && arg1 instanceof UContext) {
+                arg1.allowAccess(constants_access);
+              }
+              return call_fun.apply(null, arguments);
+            }
+          }
+        }
+        else {
+          throw Error('Unknown result type: ' + res.type);
+        }
+      }
+      return res;
+    }
+  }
+
   // Resolve the function parameters,
-  function toJSObject(params) {
+  function toJSParameterMap(params) {
     const out = {};
     for (let ident in params) {
       out[ident] = toValue(params[ident]);
@@ -195,24 +239,37 @@ function FrontEnd() {
     if (type === 'v') {
       constant_ob = def[0][1];
     }
-    // Inline JavaScript code,
+    // Inline JavaScript code and mutators,
     else if (type === 'i') {
       const func_factory = eval.call(null, def[0][1]);
-      constant_ob = func_factory;
+      const constants_access = [];
+      constant_ob = { type:'i', func:func_factory, constants_access };
+      for (let i = 1; i < def.length; ++i) {
+        // Mutator functions,
+        const mutator_name = def[i][1];
+        const args = toJSParameterMap(def[i][2]);
+        if (mutator_name === 'registerConstant') {
+          // Register constant for this function to be able to access,
+          constants_access.push(args['default']);
+        }
+        else {
+          throw Error("Unknown inline mutator: " + mutator_name);
+        }
+      }
     }
     // Object constructor and mutators,
     else if (type === 'c') {
       const constant_fun_name = def[0][1];
-      const constant_params = toJSObject(def[0][2]);
-      constant_ob = constantConstruction(constant_fun_name, constant_params);
+      const constant_params = toJSParameterMap(def[0][2]);
+      constant_ob = { type:'c', obj:constantConstruction(constant_fun_name, constant_params) };
       for (let i = 1; i < def.length; ++i) {
         // Mutator functions,
-        const fname = def[i][1];
-        const fun = constant_ob[fname];
+        const mutator_name = def[i][1];
+        const fun = constant_ob.obj[mutator_name];
         if (fun === void 0) {
-          throw Error("Method not found: " + constant_fun_name + "." + fname);
+          throw Error("Method not found: " + constant_fun_name + "." + mutator_name);
         }
-        fun(toJSObject(def[i][2]));
+        fun(toJSParameterMap(def[i][2]));
       }
     }
     else {
@@ -221,20 +278,7 @@ function FrontEnd() {
 
     constant_vars[ident] = constant_ob;
     return constant_ob;
-//    return 'a';
   }
-  
-  // Returns a JavaScript typed value given the value from the
-  // back end.
-  function toValue(vob) {
-    if (vob.v !== void 0) {
-      return vob.v;
-    }
-    else {
-      return function_load_map[vob.f](property_resolver);
-    }
-  }
-  
   
   function doProportional(desc, clos) {
     if (typeof desc === 'string') {
@@ -433,16 +477,79 @@ function FrontEnd() {
     vn_screen.addInterpolation(i, ms_to);
 
   }
+
+  // Instances of this class are passed to user functions when executed. The object
+  // provides access to the context in general,
+  function UContext() {
+  }
+  UContext.prototype.setTargetStyle = function( canvas_element, style ) {
+    console.error("PENDING: setTargetStyle");
+  };
+  UContext.prototype.animate = function( canvas_element, anim_args ) {
+    console.error("PENDING: animate");
+  };
+
+  // Calls a user code function. The creates a context and executes the function.
+  function callUserCode(func, args) {
+
+    const context = new UContext();
+    let tc_valid_objects;
+
+    context.allowAccess = function(valid_objects) {
+      if (tc_valid_objects === void 0) {
+        tc_valid_objects = valid_objects;
+      }
+      else {
+        throw Error("Permission denied");
+      }
+    };
+    context.getConstant = function(constant_name) {
+      // Fetch the value of the constant,
+      const cvar = constant_vars[constant_name];
+      // Check the user code allows access to this constant,
+      if (cvar !== void 0) {
+        // The object to test the constant against,
+        let test_obj;
+        if (typeof cvar === 'object') {
+          if (cvar.type === 'i') {
+            test_obj = cvar.func;
+          }
+          else if (cvar.type === 'c') {
+            test_obj = cvar.obj;
+          }
+        }
+        else {
+          text_obj = cvar;
+        }
+        
+        // For each valid object,
+        for (let i = 0; i < tc_valid_objects.length; ++i) {
+          // If it matches the object we accessed then permission granted,
+          if (test_obj === tc_valid_objects[i]) {
+            return cvar;
+          }
+        }
+      }
+      throw Error('Access to ' + constant_name + ' not permitted');
+    };
+
+    func.call(null, args, context);
+
+  }
   
   // ----- JavaScript API -----
   
   // Sets a named text trail. Use a name of 'default' to set the default text
   // trail.
-  function setTextTrail(name, text_trail) {
+  function setTextTrail(name, text_trail, enter, exit) {
     if (text_trail === void 0 || text_trail.ob !== 'TextTrail') {
       throw Error('Assert failed: expecting a text trail object');
     }
-    text_trail_element_map[name] = text_trail
+    text_trail_element_map[name] = text_trail;
+    // Register functions for displaying or removing the text trail,
+    text_trail.enter_fun = enter;
+    text_trail.exit_fun = exit;
+    text_trail.displayed = false;
   }
   
   function getTextTrail(name) {
@@ -467,9 +574,11 @@ function FrontEnd() {
   // Set the default text trail (where announcements go)
   system_calls.setDefaultTextTrail = function(args, cb) {
     const text_trail = args.default;
+    const enter = args.enter;
+    const exit = args.exit;
 
     // Set the default text trail,
-    setTextTrail('default', text_trail);
+    setTextTrail('default', text_trail, enter, exit);
     cb();
   };
   
@@ -477,8 +586,10 @@ function FrontEnd() {
   system_calls.setTextTrail = function(args, cb) {
     const text_trail = args.default;
     const tt_name = args.name;
+    const enter = args.enter;
+    const exit = args.exit;
     
-    setTextTrail(tt_name, text_trail);
+    setTextTrail(tt_name, text_trail, enter, exit);
     cb();
   };
   
@@ -731,12 +842,13 @@ function FrontEnd() {
     
     // Is it a system API call?
     const syscall = system_calls[ident];
+    const jsargs = toJSParameterMap(args);
     if (syscall !== void 0) {
       // Yes, it's a system call,
-      syscall(toJSObject(args), cb);
+      syscall(jsargs, cb);
     }
     else {
-      console.log("PENDING: frontend.execCall ", ident, args);
+      console.log("PENDING: frontend.execCall ", ident, jsargs);
       cb( null, { status:'callret' } );
     }
 

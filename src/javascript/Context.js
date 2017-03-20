@@ -125,6 +125,11 @@ function Context(frontend) {
       else if (vtype === 'inline') {
         const inline = varset[1];
         out.push( ['i', inline[1], inline[2] ] );
+        for (let i = 2; i < varset.length; ++i) {
+          // Mutators,
+          const mutat = varset[i][1];
+          out.push( [ 'f', mutat[1], convertArgs(mutat[2], true) ] );
+        }
       }
       else if (vtype === 'value') {
         // Static,
