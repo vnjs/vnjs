@@ -22,6 +22,8 @@ function createShadowHueGradient(ctx, mid_x, mid_y, width, height, hue) {
 // Stokes a rounded rectangle,
 function roundedRect(ctx, x, y, width, height, radius) {
 
+  if (radius === void 0) radius = 0;
+
   ctx.beginPath();
   ctx.moveTo(x, y + radius);
   ctx.lineTo(x, y + height - radius);
