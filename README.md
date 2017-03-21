@@ -5,7 +5,11 @@ An engine for developing visual novel style video games using HTML5 2D Canvas.
 that allows it to run immediately after a clone. Examples with assets will be added
 when the API stabalizes.
 
-### How to Build
+## Documentation
+
+Online documentation is available here; [VNJS Documentation](https://vnjs.github.io/docs/html/index.html)
+
+## How to Build
 Requirements to build: Node.js v6
 
 From the base directory, install browserify:
