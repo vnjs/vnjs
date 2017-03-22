@@ -318,7 +318,7 @@ function FrontEnd() {
   function convertToRawStyles(styles, ignore_keys) {
     const raw_out = {};
     for (let sk in styles) {
-      if (ignore_keys[sk]) {
+      if (ignore_keys !== void 0 && ignore_keys[sk]) {
         continue;
       }
       const style = styles[sk];
@@ -483,10 +483,12 @@ function FrontEnd() {
   function UContext() {
   }
   UContext.prototype.setTargetStyle = function( canvas_element, style ) {
-    console.error("PENDING: setTargetStyle");
+    canvas_element.target_style = convertToRawStyles( style );
   };
   UContext.prototype.animate = function( canvas_element, anim_args ) {
-    console.error("PENDING: animate");
+    const { easing, time } = anim_args;
+    addInterpolations(
+            canvas_element.el, canvas_element.target_style, time, easing);
   };
 
   // Calls a user code function. The creates a context and executes the function.
@@ -519,14 +521,14 @@ function FrontEnd() {
           }
         }
         else {
-          text_obj = cvar;
+          test_obj = cvar;
         }
         
         // For each valid object,
         for (let i = 0; i < tc_valid_objects.length; ++i) {
           // If it matches the object we accessed then permission granted,
           if (test_obj === tc_valid_objects[i]) {
-            return cvar;
+            return test_obj;
           }
         }
       }
@@ -644,6 +646,10 @@ function FrontEnd() {
     }
 
     const text_trail = getTextTrail(trail_target);
+    if (!text_trail.displayed) {
+      text_trail.displayed = true;
+      callUserCode(text_trail.enter_fun, {});
+    }
 
     // Measure and format the text to be displayed,
     text_trail.el.resetAnimationPoint();
@@ -731,6 +737,7 @@ function FrontEnd() {
       ob: 'Rectangle',
       args,
     }
+
     const rectangle = vn_screen.createPaintingCanvasElement(args.width, args.height);
     copyFields(rectangle, args);
     rectangle.draw = function(ctx, vns) {

@@ -14,6 +14,7 @@ function Context(frontend) {
   
   // The global variables object (hidden and public),
   const global_vars = {};
+
   // Used to access values from 'global_vars'
   const accessor = {
     getV: function(prop) {
