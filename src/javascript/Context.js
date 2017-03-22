@@ -121,7 +121,8 @@ function Context(frontend) {
       if (vtype === 'call') {
         // The constructor call,
         const constr = varset[1];
-        out.push( [ 'c', constr[1], convertArgs(constr[2], true) ] );
+        const construct_id = constr[1];
+        out.push( [ 'c', construct_id, convertArgs(constr[2], true) ] );
         for (let i = 2; i < varset.length; ++i) {
           // Mutators,
           const mutat = varset[i][1];

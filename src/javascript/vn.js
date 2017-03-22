@@ -126,8 +126,8 @@ function FrontEnd() {
   // All the system calls,
   const system_calls = {};
 
-  // System object constructors,
-  const sys_obj_constructors = {};
+  // The context.system object,
+  const context_system = {};
 
   // The public global variables object,
   const global_vars = {};
@@ -147,19 +147,23 @@ function FrontEnd() {
   // Map of all text trails currently available,
   let text_trail_element_map = { };
 
-
+  
+  function resolveConstant(ident) {
+    let constant_v = constant_vars[ident];
+    if (constant_v === void 0) {
+      // Construct the constant variable,
+      const constant_v_def = constant_var_defs[ident];
+      constant_v = constructConstantDef(ident, constant_v_def);
+//      console.log("CREATED CONSTANT: ", ident, "=", constant_v, "(", typeof constant_v, ")");
+    }
+    return constant_v;
+  }
+  
   const property_resolver = {
     getV: function(ident) {
       // Is it a constant?
-      const constant_v_def = constant_var_defs[ident];
-      if (constant_v_def !== void 0) {
-        let constant_v = constant_vars[ident];
-        if (constant_v === void 0) {
-          // Construct the constant variable,
-          constant_v = constructConstantDef(ident, constant_v_def);
-//          console.log("CREATED CONSTANT: ", ident, "=", constant_v, "(", typeof constant_v, ")");
-        }
-        return constant_v;
+      if (ident in constant_var_defs) {
+        return resolveConstant(ident);
       }
       else {
         return global_vars[ident];
@@ -222,13 +226,28 @@ function FrontEnd() {
   
   // Creates an object from the given constructor name.
   function constantConstruction(name, params) {
-    const sys_constr = sys_obj_constructors[name];
-    if (sys_constr !== void 0) {
-      return sys_constr(params);
+    // Look up the constructor object,
+    if (!(name in constant_var_defs)) {
+      throw Error('Constant not found: ' + name);
     }
-    else {
-      throw Error("Constructor '" + name + "' not found");
+    // Resolve the constructor function,
+    const constructor_fun = resolveConstant(name);
+    if (constructor_fun.type !== 'i') {
+      throw Error('Expecting an inline constructor function');
     }
+    
+    // The constructor function to call,
+    const javascript_fun = constructor_fun.func;
+    
+    // Call the user code to construct the object,
+    const out = callUserCode(javascript_fun, params);
+
+    // NOTE: Little bit of magic here. We set the 'ob' field to the constructor
+    // name. This is so we know how to reconstruct this object across instances.
+    out.ob = name;
+
+    return out;
+
   }
   
   function constructConstantDef(ident, def) {
@@ -265,11 +284,18 @@ function FrontEnd() {
       for (let i = 1; i < def.length; ++i) {
         // Mutator functions,
         const mutator_name = def[i][1];
-        const fun = constant_ob.obj[mutator_name];
-        if (fun === void 0) {
+        const mutators = constant_ob.obj.mutators;
+        let method_not_found = true;
+        if (typeof mutators === 'object') {
+          const fun = mutators[mutator_name];
+          if (typeof fun === 'function') {
+            method_not_found = false;
+            fun(toJSParameterMap(def[i][2]));
+          }
+        }
+        if (method_not_found) {
           throw Error("Method not found: " + constant_fun_name + "." + mutator_name);
         }
-        fun(toJSParameterMap(def[i][2]));
       }
     }
     else {
@@ -478,18 +504,29 @@ function FrontEnd() {
 
   }
 
+  function setROProp(obj, key, val) {
+    Object.defineProperty(obj, key, {
+      enumerable: true,
+      configurable: false,
+      writable: false,
+      value: val
+    });
+  }
+
   // Instances of this class are passed to user functions when executed. The object
   // provides access to the context in general,
   function UContext() {
   }
-  UContext.prototype.setTargetStyle = function( canvas_element, style ) {
+  setROProp(UContext.prototype, 'setTargetStyle', function( canvas_element, style ) {
     canvas_element.target_style = convertToRawStyles( style );
-  };
-  UContext.prototype.animate = function( canvas_element, anim_args ) {
+  });;
+  setROProp(UContext.prototype, 'animate', function( canvas_element, anim_args ) {
     const { easing, time } = anim_args;
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);
-  };
+  });;
+  setROProp(UContext.prototype, 'system', context_system);
+  setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
 
   // Calls a user code function. The creates a context and executes the function.
   function callUserCode(func, args) {
@@ -535,12 +572,36 @@ function FrontEnd() {
       throw Error('Access to ' + constant_name + ' not permitted');
     };
 
-    func.call(null, args, context);
+    return func.call(null, args, context);
 
   }
   
   // ----- JavaScript API -----
   
+  // This is the context.createDrawCanvasElement function. It returns a CanvasElement
+  // on which we can register a draw function to paint arbitrary graphics to. The
+  // object returned can be safely returned by a VNJS constructor inline function.
+  function createDrawCanvasElement(args, width, height) {
+    const out = {
+      args,
+    };
+    if (width === void 0) {
+      width = 128;
+    }
+    if (height === void 0) {
+      height = 128;
+    }
+    // Create the canvas element,
+    const ce = vn_screen.createPaintingCanvasElement(width, height);
+    out.el = ce;
+    // Function to set the draw function,
+    out.setDrawFunction = function(func) {
+      ce.draw = func;
+    }
+    setElementStyle(out, args, { 'default':-1 } );
+    return out;
+  }
+
   // Sets a named text trail. Use a name of 'default' to set the default text
   // trail.
   function setTextTrail(name, text_trail, enter, exit) {
@@ -705,7 +766,7 @@ function FrontEnd() {
     pixels_between_words: 7,
     line_height: 30
   };
-  sys_obj_constructors.TextTrail = function(args) {
+  context_system.TextTrail = function(args) {
     let ttconfig = {};
     if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
     if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
@@ -719,7 +780,6 @@ function FrontEnd() {
     vn_screen.addCanvasElement(text_trail);
 
     const out = {
-      ob: 'TextTrail',
       args,
       el: text_trail,
     };
@@ -732,14 +792,13 @@ function FrontEnd() {
   };
 
   // Rectangle object.
-  sys_obj_constructors.Rectangle = function(args) {
+  context_system.Rectangle = function(args) {
     const out = {
-      ob: 'Rectangle',
       args,
     }
 
     const rectangle = vn_screen.createPaintingCanvasElement(args.width, args.height);
-    copyFields(rectangle, args);
+//    copyFields(rectangle, args);
     rectangle.draw = function(ctx, vns) {
       const { width, height, fill_style, stroke_style, line_width, corner_radius } = rectangle;
       
@@ -775,30 +834,34 @@ function FrontEnd() {
   };
 
   // Linear gradient object.
-  sys_obj_constructors.LinearGradient = function(args) {
+  context_system.LinearGradient = function(args) {
     const out = {
-      ob: 'LinearGradient',
       args,
     }
     const fill_style = vn_screen.get2DContext().createLinearGradient(
                           args.x1, args.y1, args.x2, args.y2);
-    out.addColorStop = function(args) {
-      fill_style.addColorStop(args.stop, args.color);
+    // Define the mutator,
+    out.mutators = {
+      addColorStop: function(args) {
+        fill_style.addColorStop(args.stop, args.color);
+      }
     };
     out.val = fill_style;
     return out;
   };
 
   // Radial gradient object.
-  sys_obj_constructors.RadialGradient = function(args) {
+  context_system.RadialGradient = function(args) {
     const out = {
-      ob: 'RadialGradient',
       args,
     }
     const fill_style = vn_screen.get2DContext().createRadialGradient(
                           args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
-    out.addColorStop = function(args) {
-      fill_style.addColorStop(args.stop, args.color);
+    // Define the mutator,
+    out.mutators = {
+      addColorStop: function(args) {
+        fill_style.addColorStop(args.stop, args.color);
+      }
     };
     out.val = fill_style;
     return out;

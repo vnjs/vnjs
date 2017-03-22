@@ -754,7 +754,6 @@ function SceneComposer() {
               });
             }
           }
-
         }
 
         function checkNoRefCalls() {
@@ -776,6 +775,9 @@ function SceneComposer() {
           });
         }
         else if (ttype === 'call') {
+          const call_id = vop[1];
+          // Add the call id as a dependence,
+          var_refs.push( [call_id, src_pos] );
           // Handle ref calls,
           addCallRefs(vop, src_pos, var_refs);
           for (let i = 2; i < varop.length; ++i) {
