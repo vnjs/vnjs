@@ -138,6 +138,17 @@ function $(o) {
   
 
 
+  var toLocalIdent = function(d, loc, reject) {
+    var str = d[0];
+    // Reject keywords,
+    if ( KEYWORDS[str] === -1 ) {
+      return reject;
+    }
+    return str;
+//    return { loc:loc, t:'LOCAL', v:str };
+  };
+
+
   var flattenArgumentTree = function(d, loc, reject) {
     // Flatten argument tree,
     var map = {};
@@ -229,6 +240,8 @@ var grammar = {
     {"name": "boolean", "symbols": [FALSE], "postprocess": function(d, loc) { return { loc:loc, t:'BOOLEAN', v:false } }},
     {"name": "nullval", "symbols": [NULL], "postprocess": function(d, loc) { return { loc:loc, t:'NULL', v:null } }},
     {"name": "identifier", "symbols": [IDENT_CONST], "postprocess": function(d) { return d[0][1] }},
+    {"name": "namespaced_ident", "symbols": ["identifier"], "postprocess": function(d) { return d[0] }},
+    {"name": "namespaced_ident", "symbols": ["identifier", "_", PERIOD, "_", "namespaced_ident"], "postprocess": function(d) { return d[0] + '#' + d[4] }},
     {"name": "comment", "symbols": [COMMENT], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [ORSYM], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [OR], "postprocess": toNull},
@@ -270,20 +283,11 @@ var grammar = {
         },
     {"name": "unaryOp", "symbols": ["valueOrPareth"], "postprocess": id},
     {"name": "valueOrPareth", "symbols": ["value"], "postprocess": id},
-    {"name": "valueOrPareth", "symbols": ["local_ident"], "postprocess": id},
+    {"name": "valueOrPareth", "symbols": ["ns_local_ident"], "postprocess": id},
     {"name": "valueOrPareth", "symbols": ["parenthOp"], "postprocess": id},
     {"name": "expression", "symbols": ["binaryOp"], "postprocess": id},
-    {"name": "local_ident", "symbols": ["identifier"], "postprocess": 
-          function(d, loc, reject) {
-            var str = d[0];
-            // Reject keywords,
-            if ( KEYWORDS[str] === -1 ) {
-              return reject;
-            }
-            return str;
-        //    return { loc:loc, t:'LOCAL', v:str };
-          }
-        },
+    {"name": "local_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
+    {"name": "ns_local_ident", "symbols": ["namespaced_ident"], "postprocess": toLocalIdent},
     {"name": "simpleArgAssign", "symbols": ["valueOrPareth"], "postprocess": 
         function(d, loc) {
           return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
@@ -315,12 +319,12 @@ var grammar = {
     {"name": "commaArgSet", "symbols": ["commaArgSetTree", "commaArgSet$ebnf$1"], "postprocess": flattenArgumentTree},
     {"name": "block", "symbols": [OPENB, "nestedStatements", "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:d[1] } }},
     {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:[] } }},
-    {"name": "nbFunctionCall", "symbols": ["local_ident"], "postprocess": 
+    {"name": "nbFunctionCall", "symbols": ["ns_local_ident"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
         }
         },
-    {"name": "nbFunctionCall", "symbols": ["local_ident", "__", "argSet"], "postprocess": 
+    {"name": "nbFunctionCall", "symbols": ["ns_local_ident", "__", "argSet"], "postprocess": 
         function(d, loc, reject) {
           var argSet = d[2];
           // This rejects grammar where the default argument is a parethizied
@@ -332,22 +336,32 @@ var grammar = {
           return { loc:loc, f:'call', l:d[0], r:argSet }
         }
         },
-    {"name": "functionCall", "symbols": ["local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
+    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
         }
         },
-    {"name": "functionCall", "symbols": ["local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
+    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'call', l:d[0], r:d[4] }
         }
         },
-    {"name": "baseFunctionCall", "symbols": ["local_ident", "_", PERIOD, "_", "functionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
+    {"name": "mutatorFunctionCall", "symbols": ["local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
+        }
+        },
+    {"name": "mutatorFunctionCall", "symbols": ["local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'call', l:d[0], r:d[4] }
+        }
+        },
+    {"name": "baseFunctionCall", "symbols": ["ns_local_ident", "_", PERIOD, "_", "mutatorFunctionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
     {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
     {"name": "constRightSide", "symbols": ["expression"], "postprocess": id},
     {"name": "constRightSide", "symbols": ["functionCall"], "postprocess": id},
     {"name": "constRightSide", "symbols": ["inlineCode"], "postprocess": id},
-    {"name": "assignment", "symbols": ["local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
+    {"name": "assignment", "symbols": ["ns_local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
         }
@@ -380,7 +394,7 @@ var grammar = {
     {"name": "reservedOp", "symbols": [GOTO], "postprocess": id},
     {"name": "reservedOp", "symbols": [EVALUATE], "postprocess": id},
     {"name": "reservedOp", "symbols": [PRESERVE], "postprocess": id},
-    {"name": "langstatement", "symbols": ["reservedOp", "_", "local_ident", "_", SEMICOLON], "postprocess": 
+    {"name": "langstatement", "symbols": ["reservedOp", "_", "ns_local_ident", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:d[0][1], l:d[2] }
         }
@@ -390,12 +404,12 @@ var grammar = {
           return { loc:loc, f:'import', l:d[2] }
         }
         },
-    {"name": "conststatement", "symbols": [CONST, "__", "local_ident", "_", ASSIGN, "_", "constRightSide", "_", SEMICOLON], "postprocess": 
+    {"name": "conststatement", "symbols": [CONST, "__", "ns_local_ident", "_", ASSIGN, "_", "constRightSide", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'const', l:d[2], r:d[6] }
         }
         },
-    {"name": "definestatement", "symbols": [DEFINE, "__", "local_ident", "_", "block"], "postprocess": 
+    {"name": "definestatement", "symbols": [DEFINE, "__", "ns_local_ident", "_", "block"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'define', l:d[2], r:d[4] }
         }

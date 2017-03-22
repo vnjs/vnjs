@@ -22,7 +22,12 @@ function Context(frontend) {
       const cvalue = constants.global_varset[prop];
       if (cvalue === void 0) {
         // No, so return from global variables,
-        return global_vars[prop];
+        if (prop in global_vars) {
+          return global_vars[prop];
+        }
+        else {
+          throw Error("Variable'" + prop + "' not defined");
+        }
       }
       else {
         // Yes, so...

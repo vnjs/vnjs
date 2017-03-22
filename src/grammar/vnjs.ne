@@ -185,6 +185,10 @@ nullval -> %NULL  {% function(d, loc) { return { loc:loc, t:'NULL', v:null } } %
 
 identifier -> %IDENT_CONST             {% function(d) { return d[0][1] } %}
 
+namespaced_ident -> identifier       {% function(d) { return d[0] } %}
+                  | identifier _ %PERIOD _ namespaced_ident
+                                     {% function(d) { return d[0] + '#' + d[4] } %}
+
 
 comment -> %COMMENT {% toNull %}
 
@@ -248,7 +252,7 @@ unaryOp -> %NOT _ valueOrPareth       {% function(d, loc) { return { loc:loc, f:
          | valueOrPareth {% id %}
 
 valueOrPareth -> value {% id %}
-               | local_ident {% id %}
+               | ns_local_ident {% id %}
                | parenthOp {% id %}
 
 expression -> binaryOp {% id %}
@@ -256,9 +260,8 @@ expression -> binaryOp {% id %}
 
 # ---------------
 
-
-local_ident -> identifier        {%
-  function(d, loc, reject) {
+@{%
+  var toLocalIdent = function(d, loc, reject) {
     var str = d[0];
     // Reject keywords,
     if ( KEYWORDS[str] === -1 ) {
@@ -266,8 +269,12 @@ local_ident -> identifier        {%
     }
     return str;
 //    return { loc:loc, t:'LOCAL', v:str };
-  }
+  };
 %}
+
+local_ident -> identifier           {% toLocalIdent %}
+
+ns_local_ident -> namespaced_ident  {% toLocalIdent %}
 
 # ---------------
 
@@ -353,12 +360,12 @@ block -> %OPENB nestedStatements _ %CLOSEB {% function(d, loc) { return { loc:lo
 #   fadeIn( background );
 
 # No bracket function call (only valid within nested statements)
-nbFunctionCall -> local_ident {%
+nbFunctionCall -> ns_local_ident {%
   function(d, loc) {
     return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
   }
 %}
-              | local_ident __ argSet {%
+                | ns_local_ident __ argSet {%
   function(d, loc, reject) {
     var argSet = d[2];
     // This rejects grammar where the default argument is a parethizied
@@ -372,18 +379,31 @@ nbFunctionCall -> local_ident {%
 %}
 
 # Function call with parenthese (valid everywhere)
-functionCall -> local_ident _ %OPENP _ %CLOSEP {%
+functionCall -> ns_local_ident _ %OPENP _ %CLOSEP {%
   function(d, loc) {
     return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
   }
 %}
-              | local_ident _ %OPENP _ commaArgSet _ %CLOSEP {%
+              | ns_local_ident _ %OPENP _ commaArgSet _ %CLOSEP {%
   function(d, loc) {
     return { loc:loc, f:'call', l:d[0], r:d[4] }
   }
 %}
 
-baseFunctionCall -> local_ident _ %PERIOD _ functionCall
+# Mutator function call,
+mutatorFunctionCall -> local_ident _ %OPENP _ %CLOSEP {%
+  function(d, loc) {
+    return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
+  }
+%}
+                     | local_ident _ %OPENP _ commaArgSet _ %CLOSEP {%
+  function(d, loc) {
+    return { loc:loc, f:'call', l:d[0], r:d[4] }
+  }
+%}
+
+
+baseFunctionCall -> ns_local_ident _ %PERIOD _ mutatorFunctionCall
       {% function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } } %}
 
 
@@ -397,7 +417,7 @@ constRightSide -> expression {% id %}
                 | inlineCode {% id %}
 
 
-assignment -> local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
+assignment -> ns_local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
   function(d, loc) {
     return { loc:loc, f:'=', l:d[0], r:d[4] }
   }
@@ -430,7 +450,7 @@ reservedOp -> %GOTO {% id %}
             | %EVALUATE {% id %}
             | %PRESERVE {% id %}
 
-langstatement -> reservedOp _ local_ident _ %SEMICOLON {%
+langstatement -> reservedOp _ ns_local_ident _ %SEMICOLON {%
   function(d, loc) {
     return { loc:loc, f:d[0][1], l:d[2] }
   }
@@ -443,13 +463,13 @@ importstatement -> %IMPORT __ stringval _ %SEMICOLON {%
   }
 %}
 
-conststatement -> %CONST __ local_ident _ %ASSIGN _ constRightSide _ %SEMICOLON {%
+conststatement -> %CONST __ ns_local_ident _ %ASSIGN _ constRightSide _ %SEMICOLON {%
   function(d, loc) {
     return { loc:loc, f:'const', l:d[2], r:d[6] }
   }
 %}
 
-definestatement -> %DEFINE __ local_ident _ block {%
+definestatement -> %DEFINE __ ns_local_ident _ block {%
   function(d, loc) {
     return { loc:loc, f:'define', l:d[2], r:d[4] }
   }
