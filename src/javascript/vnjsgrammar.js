@@ -358,9 +358,12 @@ var grammar = {
         },
     {"name": "baseFunctionCall", "symbols": ["ns_local_ident", "_", PERIOD, "_", "mutatorFunctionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
     {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
-    {"name": "constRightSide", "symbols": ["expression"], "postprocess": id},
-    {"name": "constRightSide", "symbols": ["functionCall"], "postprocess": id},
-    {"name": "constRightSide", "symbols": ["inlineCode"], "postprocess": id},
+    {"name": "constRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "constRightSide", "symbols": ["functionCall", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "constRightSide$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
+    {"name": "constRightSide$ebnf$1", "symbols": ["constRightSide$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "constRightSide$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "constRightSide", "symbols": ["inlineCode", "constRightSide$ebnf$1"], "postprocess": nth(0)},
     {"name": "assignment", "symbols": ["ns_local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
@@ -404,7 +407,7 @@ var grammar = {
           return { loc:loc, f:'import', l:d[2] }
         }
         },
-    {"name": "conststatement", "symbols": [CONST, "__", "ns_local_ident", "_", ASSIGN, "_", "constRightSide", "_", SEMICOLON], "postprocess": 
+    {"name": "conststatement", "symbols": [CONST, "__", "ns_local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'const', l:d[2], r:d[6] }
         }

@@ -412,9 +412,9 @@ inlineCode -> %INLINECODE
 
 
 
-constRightSide -> expression {% id %}
-                | functionCall {% id %}
-                | inlineCode {% id %}
+constRightSide -> expression _ %SEMICOLON       {% nth(0) %}
+                | functionCall _ %SEMICOLON     {% nth(0) %}
+                | inlineCode ( _ %SEMICOLON ):? {% nth(0) %}
 
 
 assignment -> ns_local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
@@ -463,7 +463,7 @@ importstatement -> %IMPORT __ stringval _ %SEMICOLON {%
   }
 %}
 
-conststatement -> %CONST __ ns_local_ident _ %ASSIGN _ constRightSide _ %SEMICOLON {%
+conststatement -> %CONST __ ns_local_ident _ %ASSIGN _ constRightSide {%
   function(d, loc) {
     return { loc:loc, f:'const', l:d[2], r:d[6] }
   }
