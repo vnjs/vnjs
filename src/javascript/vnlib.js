@@ -22,18 +22,7 @@ polyfill2DCanvas();
 // Default configuration,
 const DEF_CONFIG = {
 
-  // For a shadow effect around the text.
-  // Fast on Chrome and Edge. Slow on other browsers.
-  text_shadow: true,
   enable_dirty_clipping: false,
-  ms_per_word: 25,
-
-  default_font_family: 'Montserrat, sans-serif',
-  default_font_size: '25px',
-  default_font_color: '#fffff0',
-
-  pixels_between_words: 7,
-  line_height: 30,
   
 };
 
@@ -54,9 +43,6 @@ function VNScreen(canvas_window_element, config) {
 
   const overall_scale = canvas_window_element.height / 720;
 
-  // The height of the text trail buffer.
-  const TEXT_TRAIL_BUFFER_HEIGHT = 200;
-
   // The current set of active elements to draw on the canvas, sorted by z depth.
   const canvas_elements = [];
   
@@ -68,13 +54,6 @@ function VNScreen(canvas_window_element, config) {
   // canvas.
   const active_interpolations = [];
 
-  // The set of active text trails currently running,
-  const active_text_trails = [];
-  
-  // True when the dialog text trail is being displayed,
-  let is_displaying_dialog_trail = false;
-
-  
   
   let frame_needs_repaint = true;
   
