@@ -171,6 +171,22 @@ function FrontEnd() {
     }
   };
 
+  function createConstantsResolver(resolveConstant) {
+    return {
+      getV: function(ident) {
+        // Is it a constant?
+        if (ident in constant_var_defs) {
+          return resolveConstant(ident);
+        }
+        else {
+          throw Error('Constant not found: ' + ident);
+        }
+      }
+    }
+  }
+  
+  const constants_resolver = createConstantsResolver(resolveConstant);
+
   // Returns a JavaScript typed value given the value from the
   // back end.
   function toValue(vob) {
@@ -183,6 +199,10 @@ function FrontEnd() {
       if (typeof res === 'object') {
         if (res.type === 'c') {
           return res.obj;
+        }
+        else if (res.type === 'd') {
+          const extrap_fun = res.func;
+          return extrap_fun.call(null, constants_resolver);
         }
         else if (res.type === 'i') {
           // The constants this inline function is permitted to access,
@@ -231,11 +251,18 @@ function FrontEnd() {
       throw Error('Constant not found: ' + name);
     }
     // Resolve the constructor function,
-    const constructor_fun = resolveConstant(name);
-    if (constructor_fun.type !== 'i') {
-      throw Error('Expecting an inline constructor function');
+    let constructor_fun = resolveConstant(name);
+    // Dynamic function,
+    let src_loc = constructor_fun.src_loc;
+    if (constructor_fun.type === 'd') {
+      // This must resolve to an inline function,
+      constructor_fun = constructor_fun.func.call(null, constants_resolver);
     }
-    
+    if (constructor_fun.type !== 'i') {
+      throw Error(
+          'Expect an inline constructor function; ' +
+          src_loc.source_file + ":" + src_loc.line + ":" + src_loc.column);
+    }
     // The constructor function to call,
     const javascript_fun = constructor_fun.func;
     
@@ -247,22 +274,36 @@ function FrontEnd() {
     out.ob = name;
 
     return out;
-
   }
   
   function constructConstantDef(ident, def) {
     
-    const type = def[0][0];
+    const fdef = def[0];
+    const type = fdef[0];
     let constant_ob;
     // Static value,
     if (type === 'v') {
-      constant_ob = def[0][1];
+      constant_ob = fdef[1];
+    }
+    // Dynamic value,
+    else if (type === 'd') {
+      const func_factory = eval.call(null, fdef[1]);
+      constant_ob =
+          { type:    'd',
+            func:    func_factory,
+            src_loc: fdef[2]
+          };
     }
     // Inline JavaScript code and mutators,
     else if (type === 'i') {
-      const func_factory = eval.call(null, def[0][1]);
+      const func_factory = eval.call(null, fdef[1]);
       const constants_access = [];
-      constant_ob = { type:'i', func:func_factory, constants_access };
+      constant_ob =
+          { type:     'i',
+            func:     func_factory,
+            constants_access,
+            src_loc:  fdef[3]
+          };
       for (let i = 1; i < def.length; ++i) {
         // Mutator functions,
         const mutator_name = def[i][1];
@@ -278,9 +319,13 @@ function FrontEnd() {
     }
     // Object constructor and mutators,
     else if (type === 'c') {
-      const constant_fun_name = def[0][1];
-      const constant_params = toJSParameterMap(def[0][2]);
-      constant_ob = { type:'c', obj:constantConstruction(constant_fun_name, constant_params) };
+      const constant_fun_name = fdef[1];
+      const constant_params = toJSParameterMap(fdef[2]);
+      constant_ob =
+          { type:    'c',
+            obj:     constantConstruction(constant_fun_name, constant_params),
+            src_loc: fdef[3]
+          };
       for (let i = 1; i < def.length; ++i) {
         // Mutator functions,
         const mutator_name = def[i][1];

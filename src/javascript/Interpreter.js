@@ -162,7 +162,23 @@ function Interpreter(parsed_vn) {
   
   // Initialize the context state.
   function initializeState(context, cb) {
-    context.setConstantsInfo( { global_varset: parsed_vn.global_varset,
+    // Generate a source map for all constants,
+    const assigns = parsed_vn.assign_location;
+    const codebase = parsed_vn.codebase;
+    const constants_source_map = {};
+    for (let var_name in assigns) {
+      const asgn = assigns[var_name];
+      const source_file = asgn[0];
+      const src_pos = asgn[1];
+      // Calculate the line and column,
+      const line_col = codebase[source_file].calcLineColumn(src_pos);
+      // Put the source and line/column into the map,
+      constants_source_map[var_name] =
+              { source_file, line:line_col.line, column:line_col.column };
+    }
+
+    context.setConstantsInfo( { constants_source_map,
+                                global_varset: parsed_vn.global_varset,
                                 var_dependencies: parsed_vn.var_dependencies } );
     context.initialize(cb);
   }

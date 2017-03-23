@@ -86,6 +86,7 @@ const vnjs.object.TextArt = {%
   }
 %}
 
-
+// Alias for TextArt object,
+const TextArt = vnjs.object.TextArt;
 
 

@@ -106,7 +106,7 @@ function Context(frontend) {
     if (loaded_constants_cache[v] === void 0) {
       loaded_constants_cache[v] = -1;
 
-      const { var_dependencies, global_varset } = constants;
+      const { var_dependencies, global_varset, constants_source_map } = constants;
       // Recurse over the constant dependencies,
       const deps = var_dependencies[v];
       for (let i = 0; i < deps.length; ++i) {
@@ -116,13 +116,15 @@ function Context(frontend) {
       const out = [];
       const varset = global_varset[v];
 
+      const source_pos = constants_source_map[v];
+      
       const vtype = varset[1][0];
       
       if (vtype === 'call') {
         // The constructor call,
         const constr = varset[1];
         const construct_id = constr[1];
-        out.push( [ 'c', construct_id, convertArgs(constr[2], true) ] );
+        out.push( [ 'c', construct_id, convertArgs(constr[2], true), source_pos ] );
         for (let i = 2; i < varset.length; ++i) {
           // Mutators,
           const mutat = varset[i][1];
@@ -131,7 +133,7 @@ function Context(frontend) {
       }
       else if (vtype === 'inline') {
         const inline = varset[1];
-        out.push( ['i', inline[1], inline[2] ] );
+        out.push( ['i', inline[1], inline[2], source_pos ] );
         for (let i = 2; i < varset.length; ++i) {
           // Mutators,
           const mutat = varset[i][1];
@@ -140,9 +142,14 @@ function Context(frontend) {
       }
       else if (vtype === 'value') {
         // Static,
-        out.push( [ 'v', varset[1][1] ] );
+        out.push( [ 'v', varset[1][1], source_pos ] );
+      }
+      else if (vtype === 'function') {
+        // Dynamic,
+        out.push( [ 'd', varset[1][1], source_pos ] );
       }
       else {
+        console.error(varset);
         throw Error(vtype);
       }
       frontend.loadConstant(v, out);
