@@ -1,6 +1,6 @@
 "use strict";
 
-import { isUndefined } from './utils';
+const { isUndefined } = require('./utils');
 
 
 
@@ -103,4 +103,4 @@ function CanvasElement() {
   return ce;  
 }
 
-export default CanvasElement;
+exports.CanvasElement = CanvasElement;

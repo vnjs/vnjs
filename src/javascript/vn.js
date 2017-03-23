@@ -1,16 +1,16 @@
 "use strict";
 
 // External libs,  
-import VNScreen from './vnlib';
-import TextTrail from './TextTrail';
-import { roundedRect, roundedShadowedRect } from './graphics';
-import { loadFile, mergeConfig } from './utils';
-import TextFormatter from './TextFormatter';
+const VNScreen = require('./vnlib').VNScreen;
+const { roundedRect, roundedShadowedRect } = require('./graphics');
+const { loadFile, mergeConfig } = require('./utils');
 
 // We use 'require' for import here so that these libraries also work in node.js
-let SceneComposer = require('./SceneComposer').SceneComposer;
-let Context = require('./Context').Context;
-let Interpreter = require('./Interpreter').Interpreter;
+const SceneComposer = require('./SceneComposer').SceneComposer;
+const Context = require('./Context').Context;
+const Interpreter = require('./Interpreter').Interpreter;
+const TextTrail = require('./TextTrail').TextTrail;
+const TextFormatter = require('./TextFormatter').TextFormatter;
 
 // Is this self-invoking function necessary with the babel transform?
 (function() {

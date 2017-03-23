@@ -1,10 +1,10 @@
 "use strict";
 
-import { isUndefined, mergeConfig, polyfill2DCanvas, Rectangle } from './utils';
+const { isUndefined, mergeConfig, polyfill2DCanvas, Rectangle } = require('./utils');
 
-import TextFormatter from './TextFormatter';
-import CanvasElement from './CanvasElement';
-import TextTrail     from './TextTrail';
+const TextFormatter = require('./TextFormatter').TextFormatter;
+const CanvasElement = require('./CanvasElement').CanvasElement;
+const TextTrail = require('./TextTrail').TextTrail;
 
 // Visual Novel engine base library script.
 //
@@ -605,5 +605,4 @@ function VNScreen(canvas_window_element, config) {
 
 
 
-
-export default VNScreen;
+exports.VNScreen = VNScreen;

@@ -1,6 +1,6 @@
 "use strict";
 
-import { isUndefined } from './utils';
+const { isUndefined } = require('./utils');
 
 // Various graphics utilities.
 
@@ -105,4 +105,4 @@ function roundedShadowedRect(ctx, x, y, width, height, radius, style) {
 
 
 
-export { roundedRect, roundedShadowedRect, createShadowHueGradient };
+module.exports = { roundedRect, roundedShadowedRect, createShadowHueGradient };

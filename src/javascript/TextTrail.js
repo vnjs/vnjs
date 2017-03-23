@@ -1,9 +1,9 @@
 "use strict";
 
-import { isUndefined, mergeConfig } from './utils';
+const { isUndefined, mergeConfig } = require('./utils');
 
-import CanvasElement from './CanvasElement';
-import TextFormatter from './TextFormatter';
+const TextFormatter = require('./TextFormatter').TextFormatter;
+const CanvasElement = require('./CanvasElement').CanvasElement;
 
 // A text trail that is rendered into a buffer and can be
 // animated in various ways.
@@ -219,4 +219,4 @@ function TextTrail(vn_screen, config) {
 
 }
 
-export default TextTrail;
+exports.TextTrail = TextTrail;

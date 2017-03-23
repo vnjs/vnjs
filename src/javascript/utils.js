@@ -50,6 +50,10 @@ function Rectangle(x, y, wid, hei) {
   return { x, y, wid, hei };
 };
 
-
-export { isUndefined, mergeConfig, polyfill2DCanvas, loadFile,
-         Rectangle };
+module.exports = {
+  isUndefined,
+  mergeConfig,
+  polyfill2DCanvas,
+  loadFile,
+  Rectangle
+};

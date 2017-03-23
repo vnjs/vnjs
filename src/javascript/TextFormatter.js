@@ -317,4 +317,4 @@ function TextFormatter(config) {
 
 };
 
-export default TextFormatter;
+exports.TextFormatter = TextFormatter;
