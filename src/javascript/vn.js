@@ -526,8 +526,9 @@ function FrontEnd() {
 
     // Record the applicable current state of the element,
     const cur_styles = {};
+    const from_style = el.getStyles();
     for (let k in target_styles) {
-      cur_styles[k] = el[k];
+      cur_styles[k] = from_style[k];
     }
 
     const ms_to = time * 1000;
@@ -538,7 +539,7 @@ function FrontEnd() {
         const to_v = target_styles[k];
         const ts_av = easingFunction(
                           easing, ts - i.time_start, ms_to, from_v, to_v - from_v);
-        el[k] = ts_av;
+        el.setStyle(k, ts_av);
       }
     };
     i.complete = function() {
@@ -648,6 +649,7 @@ function FrontEnd() {
     out.setDrawFunction = function(func) {
       ce.draw = func;
     }
+    out.getStyles = ce.getStyles;
     setElementStyle(out, args, { 'default':-1 } );
     return out;
   }
@@ -770,7 +772,7 @@ function FrontEnd() {
     const time_to_complete = text_trail.el.getTotalTimeMS();
 
     // The interpolation target,
-    text_trail.el.time = 0;
+    text_trail.el.getStyles().time = 0;
     const dstyle = { time: time_to_complete };
     // Start the animation interpolation,
     addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
@@ -931,12 +933,19 @@ function FrontEnd() {
 
   }
 
+  
+  function dumpDebug(output) {
+    vn_screen.dumpDebug(output);
+  }
+  
+  
   return {
     initialize,
     loadConstant,
     loadFunction,
     execAssign,
     execCall,
+    dumpDebug,
   };
 }
 
@@ -977,6 +986,11 @@ function gameLaunch() {
           if (code) {
             if (code.status === 'finished') {
               console.log("Interpreter finished");
+              
+//              const dump_out = [];
+//              front_end.dumpDebug(dump_out);
+//              console.error(dump_out);
+              
               return;
             }
           }

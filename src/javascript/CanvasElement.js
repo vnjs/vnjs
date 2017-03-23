@@ -6,8 +6,7 @@ const { isUndefined } = require('./utils');
 
 function CanvasElement() {
   
-  const ce = {
-    type: 'EMPTY',
+  const style = {
     x: 0,
     y: 0,
     depth: 1,
@@ -18,89 +17,104 @@ function CanvasElement() {
   };
   
   function setDepth(depth) {
-    ce.depth = depth;
+    style.depth = depth;
   };
   function setLocation(x, y) {
-    ce.x = x;
-    ce.y = y;
+    style.x = x;
+    style.y = y;
   };
   function setX(x) {
-    ce.x = x;
+    style.x = x;
   };
   function setY(y) {
-    ce.y = y;
+    style.y = y;
   };
   function setScale(x, y) {
     if (!isUndefined(x)) {
       if (isUndefined(y)) {
-        ce.scale_x = x;
-        ce.scale_y = x;
+        style.scale_x = x;
+        style.scale_y = x;
       }
       else {
-        ce.scale_x = x;
-        ce.scale_y = y;
+        style.scale_x = x;
+        style.scale_y = y;
       }
     }
   };
   function setScaleX(sx) {
-    ce.scale_x = sx;
+    style.scale_x = sx;
   };
   function setScaleY(sy) {
-    ce.scale_y = sy;
+    style.scale_y = sy;
   };
   function setDrawAlpha(alpha) {
-    ce.alpha = alpha;
+    style.alpha = alpha;
   };
   function setRotation(rot) {
-    ce.rotation = rot;
+    style.rotation = rot;
   };
   function setNoScaleFactor(bool) {
-    ce.noScaleFactor = bool;
+    style.noScaleFactor = bool;
   };
-  function setRawStyles(styles) {
-    for (let f in styles) {
+  function setRawStyles(in_styles) {
+    for (let f in in_styles) {
       // Protect 'type' field
       if (f !== 'type') {
-        ce[f] = styles[f];
+        style[f] = in_styles[f];
       }
     }
   };
   
+  function setStyle(prop, val) {
+    style[prop] = val;
+  };
+  
+  function getStyles() {
+    return style;
+  };
+  
   function getBounds() {
-    if (this.rotation !== 0) {
+    const rot = style.rotation;
+    if (rot !== 0) {
       // Account for rotation,
-      var wid = (ce.mid_x * 2) * ce.scale_x;
-      var hei = (ce.mid_y * 2) * ce.scale_y;
-      var rot_width = Math.sin(ce.rotation) * hei + Math.cos(ce.rotation) * wid;
-      var rot_height = Math.sin(ce.rotation) * wid + Math.cos(ce.rotation) * hei;
+      var wid = style.width * style.scale_x;
+      var hei = style.height * style.scale_y;
+      var rot_width = Math.sin(rot) * hei + Math.cos(rot) * wid;
+      var rot_height = Math.sin(rot) * wid + Math.cos(rot) * hei;
       return Rectangle(
-            (ce.x * ce.scale_x) - (rot_width / 2),
-            (ce.y * ce.scale_y) - (row_height / 2),
+            (style.x * style.scale_x) - (rot_width / 2),
+            (style.y * style.scale_y) - (row_height / 2),
             row_width, rot_height );
     }
     else {
       return Rectangle(
-            (ce.x - ce.mid_x) * ce.scale_x,
-            (ce.y - ce.mid_y) * ce.scale_y,
-            (ce.mid_x * 2) * ce.scale_x,
-            (ce.mid_y * 2) * ce.scale_y );
+            (style.x - (style.width / 2)) * style.scale_x,
+            (style.y - (style.height / 2)) * style.scale_y,
+            style.width * style.scale_x,
+            style.height * style.scale_y );
     }
   };
-  
-  ce.setDepth = setDepth;
-  ce.setLocation = setLocation;
-  ce.setScale = setScale;
-  ce.setDrawAlpha = setDrawAlpha;
-  ce.setRotation = setRotation;
-  ce.setNoScaleFactor = setNoScaleFactor;
-  ce.getBounds = getBounds;
-  ce.setX = setX;
-  ce.setY = setY;
-  ce.setScaleX = setScaleX;
-  ce.setScaleY = setScaleY;
-  ce.setRawStyles = setRawStyles;
 
-  return ce;  
+  return {
+    type: 'EMPTY',
+    style,
+    
+    setDepth,
+    setLocation,
+    setScale,
+    setDrawAlpha,
+    setRotation,
+    setNoScaleFactor,
+    getBounds,
+    setX,
+    setY,
+    setScaleX,
+    setScaleY,
+    setRawStyles,
+    setStyle,
+    getStyles,
+  };
+
 }
 
 exports.CanvasElement = CanvasElement;

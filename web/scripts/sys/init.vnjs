@@ -38,28 +38,28 @@ const vnjs.object.Rectangle = {%
     // The draw function for this element,
     rectangle_ce.setDrawFunction( function(ctx2d, vns) {
 
-      // The canvas element,
-      var el = rectangle_ce.el;
+      // The current styling of the element,
+      var cstyle = rectangle_ce.getStyles();
 
       var roundedRect = context.lib.graphics.roundedRect;
-      roundedRect(ctx2d, -(el.width / 2), -(el.height / 2), el.width, el.height, el.corner_radius );
+      roundedRect(ctx2d, -(cstyle.width / 2), -(cstyle.height / 2), cstyle.width, cstyle.height, cstyle.corner_radius );
 
-      var type_fill_style = typeof el.fill_style;
+      var type_fill_style = typeof cstyle.fill_style;
       if (type_fill_style !== 'undefined') {
         if (type_fill_style === 'string') {
-          ctx2d.fillStyle = el.fill_style;
+          ctx2d.fillStyle = cstyle.fill_style;
         }
         else {
           // This must be an object of type LinearGradient or RadialGradient,
           // Check object type?
-          ctx2d.fillStyle = el.fill_style.val;
+          ctx2d.fillStyle = cstyle.fill_style.val;
         }
         ctx2d.fill();
       }
-      if (el.stroke_style !== void 0) {
-        ctx2d.strokeStyle = el.stroke_style;
-        if (el.line_width !== void 0) {
-          ctx2d.lineWidth = el.line_width;
+      if (cstyle.stroke_style !== void 0) {
+        ctx2d.strokeStyle = cstyle.stroke_style;
+        if (cstyle.line_width !== void 0) {
+          ctx2d.lineWidth = cstyle.line_width;
         }
         else {
           ctx2d.lineWidth = 1;
@@ -102,8 +102,10 @@ const vnjs.object.TextArt = {%
     // The draw function for this element,
     text_art.setDrawFunction( function(ctx2d, vns) {
 
+      var cstyle = text_art.getStyles();
+      
       // Get the text content,
-      var text_to_draw = text_art.el.text;
+      var text_to_draw = cstyle.text;
       if (cur_text !== text_to_draw) {
         // Do we need to measure it?
         // If the text changed since the last call it is re-measured here,
@@ -112,7 +114,7 @@ const vnjs.object.TextArt = {%
       }
 
       // Position and draw each word,
-      var dx = -(text_art.el.trail_width / 2);
+      var dx = -(cstyle.trail_width / 2);
       var words_ar = measured_text.words_ar;
       for (var i = 0; i < words_ar.length; ++i) {
         var w = words_ar[i];

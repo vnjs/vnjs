@@ -213,7 +213,7 @@ function VNScreen(canvas_window_element, config) {
       // Stable sort of canvas_elements by depth,
       canvas_elements.forEach( (ce, i) => { ce.sort_i = i } );
       canvas_elements.sort( (el1, el2) => {
-        const c = el1.depth - el2.depth;
+        const c = el1.getStyles().depth - el2.getStyles().depth;
         if (c === 0) return el1.sort_i - el2.sort_i;
         return c;
       });
@@ -222,15 +222,16 @@ function VNScreen(canvas_window_element, config) {
 
     for (let i = 0; i < len; ++i) {
       const el = canvas_elements[i];
+      const cstyle = el.getStyles();
       // Do we draw the element?
-      if (el.alpha > 0) {
+      if (cstyle.alpha > 0) {
         // Yup,
         // Translate the context to the element midpoint,
         resetTransform(ctx);
-        ctx.translate(el.x, el.y);
-        ctx.rotate(el.rotation);
-        ctx.scale(el.scale_x, el.scale_y);
-        ctx.globalAlpha = el.alpha;
+        ctx.translate(cstyle.x, cstyle.y);
+        ctx.rotate(cstyle.rotation);
+        ctx.scale(cstyle.scale_x, cstyle.scale_y);
+        ctx.globalAlpha = cstyle.alpha;
         // Then call the draw function,
         el.draw(ctx, out_vnscreen);
       }
@@ -350,13 +351,15 @@ function VNScreen(canvas_window_element, config) {
     // Reset to the raw scaling of the input context,
     resetToRawTransform(ctx);
     
+    const cstyle = ce.getStyles();
+    
     // If there's no rotation or scaling then we align the translation to the
     // floor'd pixel value. This prevents the buffer draw being alias'd
-    if (ce.rotation === 0 && ce.scale_x === 1 && ce.scale_y === 1) {
+    if (cstyle.rotation === 0 && cstyle.scale_x === 1 && cstyle.scale_y === 1) {
       // Translate to the midpoint,
-      ctx.translate( ~~(ce.x * overall_scale),
-                     ~~(ce.y * overall_scale) );
-      ctx.globalAlpha = ce.alpha;
+      ctx.translate( ~~(cstyle.x * overall_scale),
+                     ~~(cstyle.y * overall_scale) );
+      ctx.globalAlpha = cstyle.alpha;
       // Draw the buffer,
       ctx.drawImage(canvas,
                     ~~(-(canvas.width / 2)),
@@ -364,11 +367,11 @@ function VNScreen(canvas_window_element, config) {
     }
     else {
       // Translate to the midpoint,
-      ctx.translate( (ce.x * overall_scale),
-                     (ce.y * overall_scale) );
-      ctx.rotate( ce.rotation );
-      ctx.scale( ce.scale_x, ce.scale_y );
-      ctx.globalAlpha = ce.alpha;
+      ctx.translate( (cstyle.x * overall_scale),
+                     (cstyle.y * overall_scale) );
+      ctx.rotate( cstyle.rotation );
+      ctx.scale( cstyle.scale_x, cstyle.scale_y );
+      ctx.globalAlpha = cstyle.alpha;
       // Draw the buffer,
       ctx.drawImage(canvas,
                     (-(canvas.width / 2)),
@@ -532,38 +535,44 @@ function VNScreen(canvas_window_element, config) {
   function createPaintingCanvasElement(width, height) {
     const el = createCanvasElement();
     el.type = 'PAINTING';
-    el.width = width;
-    el.height = height;
-    el.mid_x = width / 2;
-    el.mid_y = height / 2;
+    el.setRawStyles( {
+      width,
+      height,
+    } );
     el.draw = NOOP_DRAW;
     return el;
   };
   
-  // Create a static image canvas element.
-  function createStaticImageCanvasElement(img_id) {
-    const el = createCanvasElement();
-    el.type = 'STATIC';
-    el.img_id = img_id;
-    const img_obj = images_map[img_id];
-    el.img_obj = img_obj;
-    el.width = img_obj.width;
-    el.height = img_obj.height;
-    el.mid_x = el.width / 2;
-    el.mid_y = el.height / 2;
-    el.draw = function(ctx) {
-      ctx.rotate(el.rotation);
-      if (el.noScaleFactor) {
-        // No scale factor on this image,
-      }
-      else {
-        ctx.scale(scaling_factor, scaling_factor);
-      }
-      ctx.drawImage(el.img_obj, -el.mid_x, -el.mid_y);
-    };
-    return el;
-  };
-  
+//  // Create a static image canvas element.
+//  function createStaticImageCanvasElement(img_id) {
+//    const el = createCanvasElement();
+//    el.type = 'STATIC';
+//    el.img_id = img_id;
+//    const img_obj = images_map[img_id];
+//    el.img_obj = img_obj;
+//    el.width = img_obj.width;
+//    el.height = img_obj.height;
+//    el.mid_x = el.width / 2;
+//    el.mid_y = el.height / 2;
+//    el.draw = function(ctx) {
+//      ctx.rotate(el.rotation);
+//      if (el.noScaleFactor) {
+//        // No scale factor on this image,
+//      }
+//      else {
+//        ctx.scale(scaling_factor, scaling_factor);
+//      }
+//      ctx.drawImage(el.img_obj, -el.mid_x, -el.mid_y);
+//    };
+//    return el;
+//  };
+
+
+
+
+  function dumpDebug(output) {
+    output.push(canvas_elements);
+  }
   
   
 
@@ -594,7 +603,9 @@ function VNScreen(canvas_window_element, config) {
     addCanvasElement,
     createCanvasElement,
     createPaintingCanvasElement,
-    createStaticImageCanvasElement,
+//    createStaticImageCanvasElement,
+
+    dumpDebug,
 
   };
   return out_vnscreen;

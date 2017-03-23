@@ -35,8 +35,9 @@ function TextTrail(vn_screen, config) {
   // The CanvasElement we are extending,
   const ce = CanvasElement();
   ce.type = 'TEXT_TRAIL';
-  ce.time = 0;
-  ce.word_count = 0;
+  const cstyle = ce.getStyles();
+  cstyle.time = 0;
+  cstyle.word_count = 0;
 
   // Config properties,
   let { draw_context, dx, dy, buffer_width, buffer_height, ms_per_word } = config;
@@ -49,8 +50,8 @@ function TextTrail(vn_screen, config) {
   if (isUndefined(dy)) dy = 0;
   if (isUndefined(ms_per_word)) ms_per_word = 50;
   
-  ce.width = buffer_width;
-  ce.height = buffer_height;
+  cstyle.width = buffer_width;
+  cstyle.height = buffer_height;
   
   let buffer_canvas;
 
@@ -71,7 +72,7 @@ function TextTrail(vn_screen, config) {
   //    [ trail_width, trail_height ]
   function measureAndLayoutText(text) {
     text_layout = text_measurer.measureAndLayout(text);
-    ce.word_count = text_layout.words_ar.length;
+    cstyle.word_count = text_layout.words_ar.length;
     clearBufferCanvas();
   };
   
@@ -144,7 +145,7 @@ function TextTrail(vn_screen, config) {
   // Returns the total number of microseconds necessary to complete the
   // current text loaded into this text trail.
   function getTotalTimeMS() {
-    return (ce.word_count * ms_per_word);
+    return (cstyle.word_count * ms_per_word);
   };
   
   // Returns the canvas buffer where the text is painted in the
@@ -193,7 +194,7 @@ function TextTrail(vn_screen, config) {
   // The CanvasElement draw method,
   function draw(ctx, out_vnscreen) {
     // Paint to buffer,
-    paintToBuffer(ce.time);
+    paintToBuffer(cstyle.time);
     // Paints a raw buffer.
     out_vnscreen.paintBufferCanvas(ctx, getBufferCanvas(), ce);
   };
