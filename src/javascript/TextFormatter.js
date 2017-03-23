@@ -57,9 +57,9 @@ function TextFormatter(config) {
   function genStyleObject(style_stack) {
     // Base text_style info,
     const style = {
-      font: config.default_font_family,
-      fontSize: config.default_font_size,
-      fontColor: config.default_font_color
+      font: config.default_font_family ? config.default_font_family : config.font_family,
+      fontSize: config.default_font_size ? config.default_font_size : config.font_size,
+      fontColor: config.default_font_color ? config.default_font_color : config.font_color
     };
     
     // Look for any styles on the stack,

@@ -5,7 +5,7 @@ import VNScreen from './vnlib';
 import TextTrail from './TextTrail';
 import { roundedRect, roundedShadowedRect } from './graphics';
 import { loadFile, mergeConfig } from './utils';
-
+import TextFormatter from './TextFormatter';
 
 // We use 'require' for import here so that these libraries also work in node.js
 let SceneComposer = require('./SceneComposer').SceneComposer;
@@ -527,6 +527,10 @@ function FrontEnd() {
   });;
   setROProp(UContext.prototype, 'system', context_system);
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
+  setROProp(UContext.prototype, 'lib', {
+    TextFormatter,
+    graphics: { roundedRect }
+  });
 
   // Calls a user code function. The creates a context and executes the function.
   function callUserCode(func, args) {
@@ -760,17 +764,17 @@ function FrontEnd() {
 
   // TextTrail object.
   const DEFAULT_TTRAIL_CONFIG = {
-    default_font_family: 'sans-serif',
-    default_font_size: '25px',
-    default_font_color: '#ffffff',
+    font_family: 'sans-serif',
+    font_size: '25px',
+    font_color: '#ffffff',
     pixels_between_words: 7,
     line_height: 30
   };
   context_system.TextTrail = function(args) {
     let ttconfig = {};
-    if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
-    if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
-    if (args.font_color !== void 0) ttconfig.default_font_color = args.font_color;
+//    if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
+//    if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
+//    if (args.font_color !== void 0) ttconfig.default_font_color = args.font_color;
     if (args.width !== void 0) ttconfig.buffer_width = args.width;
     if (args.height !== void 0) ttconfig.buffer_height = args.height;
 
@@ -786,8 +790,7 @@ function FrontEnd() {
 
     // Set initial canvas style properties,
     setElementStyle(out, args,
-        { default_font_family:-1, default_font_size:-1, default_font_color:-1,
-          buffer_width:-1, buffer_height:-1 } );
+        { buffer_width:-1, buffer_height:-1 } );
     return out;
   };
 

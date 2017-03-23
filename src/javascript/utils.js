@@ -51,16 +51,5 @@ function Rectangle(x, y, wid, hei) {
 };
 
 
-//class Rectangle {
-//  constructor(x, y, wid, hei) {
-//    this.x = x;
-//    this.y = y;
-//    this.wid = wid;
-//    this.hei = hei;
-//  }
-//};
-
-
-
 export { isUndefined, mergeConfig, polyfill2DCanvas, loadFile,
          Rectangle };
