@@ -35,18 +35,53 @@ const Group = {%
 
 
 
-// Currently a test object,
+// A CanvasElement object that draws a single line of text centered on the canvas element's
+// location.
 const vnjs.object.TextArt = {%
   function (args, context) {
     
+    // Defaults,
+    var config = {
+      trail_width:          1280,
+      trail_height:         100,
+      pixels_between_words: 8,
+      text_halign:          "center"
+    };
+    for (prop in args) {
+      config[prop] = args[prop];
+    }
+    var formatter = context.lib.TextFormatter(config);
+
+    var cur_text;
+    var measured_text;
+
     // Create the canvas element object,
-    var text_art = context.createDrawCanvasElement( args );
+    var text_art = context.createDrawCanvasElement( config );
+    
     // The draw function for this element,
     text_art.setDrawFunction( function(ctx2d, vns) {
-      ctx2d.fillStyle = 'green';
-      ctx2d.fillRect(-100, -200, 200, 400);
+
+      // Get the text content,
+      var text_to_draw = text_art.el.text;
+      if (cur_text !== text_to_draw) {
+        // Do we need to measure it?
+        // If the text changed since the last call it is re-measured here,
+        cur_text = text_to_draw;
+        measured_text = formatter.measureAndLayout(cur_text);
+      }
+
+      // Position and draw each word,
+      var dx = -(text_art.el.trail_width / 2);
+      var words_ar = measured_text.words_ar;
+      for (var i = 0; i < words_ar.length; ++i) {
+        var w = words_ar[i];
+        ctx2d.font = w.word.style.fontSizeAndFamily;
+        ctx2d.fillStyle = w.word.style.fontColor;
+        ctx2d.fillText(w.word.text, dx + w.x, 0);
+      }
+
     });
-    
+
     return text_art;
   }
 %}
