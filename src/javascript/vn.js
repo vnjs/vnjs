@@ -574,6 +574,7 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
   setROProp(UContext.prototype, 'lib', {
     TextFormatter,
+    TextTrail,
     graphics: { roundedRect }
   });
 
@@ -836,48 +837,6 @@ function FrontEnd() {
     // Set initial canvas style properties,
     setElementStyle(out, args,
         { buffer_width:-1, buffer_height:-1 } );
-    return out;
-  };
-
-  // Rectangle object.
-  context_system.Rectangle = function(args) {
-    const out = {
-      args,
-    }
-
-    const rectangle = vn_screen.createPaintingCanvasElement(args.width, args.height);
-//    copyFields(rectangle, args);
-    rectangle.draw = function(ctx, vns) {
-      const { width, height, fill_style, stroke_style, line_width, corner_radius } = rectangle;
-      
-      roundedRect(ctx, -(width / 2), -(height / 2), width, height, corner_radius );
-      
-      const fill_style_type = typeof fill_style;
-      if (fill_style_type !== 'undefined') {
-        if (fill_style_type === 'string') {
-          ctx.fillStyle = fill_style;
-        }
-        else {
-          // This must be an object of type LinearGradient or RadialGradient,
-          // Check object type?
-          ctx.fillStyle = fill_style.val;
-        }
-        ctx.fill();
-      }
-      if (stroke_style !== void 0) {
-        ctx.strokeStyle = stroke_style;
-        if (line_width !== void 0) {
-          ctx.lineWidth = line_width;
-        }
-        else {
-          ctx.lineWidth = 1;
-        }
-        ctx.stroke();
-      }
-    };
-    out.el = rectangle;
-    // Set initial canvas style properties,
-    setElementStyle(out, args, {});
     return out;
   };
 

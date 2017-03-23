@@ -1,11 +1,6 @@
 
 // Defines system constants Canvas Element constructors,
 
-const Rectangle = {%
-  function (args, context) {
-    return context.system.Rectangle(args, context);
-  }
-%}
 
 const TextTrail = {%
   function (args, context) {
@@ -32,6 +27,52 @@ const Group = {%
 %}
 
 
+
+// Rectangle CanvasElement,
+const vnjs.object.Rectangle = {%
+  function (args, context) {
+
+    // Create the canvas element object,
+    var rectangle_ce = context.createDrawCanvasElement( args );
+
+    // The draw function for this element,
+    rectangle_ce.setDrawFunction( function(ctx2d, vns) {
+
+      // The canvas element,
+      var el = rectangle_ce.el;
+
+      var roundedRect = context.lib.graphics.roundedRect;
+      roundedRect(ctx2d, -(el.width / 2), -(el.height / 2), el.width, el.height, el.corner_radius );
+
+      var type_fill_style = typeof el.fill_style;
+      if (type_fill_style !== 'undefined') {
+        if (type_fill_style === 'string') {
+          ctx2d.fillStyle = el.fill_style;
+        }
+        else {
+          // This must be an object of type LinearGradient or RadialGradient,
+          // Check object type?
+          ctx2d.fillStyle = el.fill_style.val;
+        }
+        ctx2d.fill();
+      }
+      if (el.stroke_style !== void 0) {
+        ctx2d.strokeStyle = el.stroke_style;
+        if (el.line_width !== void 0) {
+          ctx2d.lineWidth = el.line_width;
+        }
+        else {
+          ctx2d.lineWidth = 1;
+        }
+        ctx2d.stroke();
+      }
+
+    });
+
+    return rectangle_ce;
+
+  }
+%}
 
 
 
@@ -83,10 +124,13 @@ const vnjs.object.TextArt = {%
     });
 
     return text_art;
+
   }
 %}
 
-// Alias for TextArt object,
+
+// Aliases,
 const TextArt = vnjs.object.TextArt;
+const Rectangle = vnjs.object.Rectangle;
 
 
