@@ -166,15 +166,15 @@ function VNScreen(canvas_window_element, config) {
     // Note; this provides us details about where the element was and where
     //  it's going between frames.
     const ai_len = active_interpolations.length;
-    
+
     const ENABLE_DIRTY_CLIPPING = config.enable_dirty_clipping;
-    
+
     active_interpolations.forEach((ai) => {
       if (ENABLE_DIRTY_CLIPPING) dirty_areas.push(ai.canvas_element.getBounds());
       ai.interpolate(time);
       if (ENABLE_DIRTY_CLIPPING) dirty_areas.push(ai.canvas_element.getBounds());
     });
-    
+
     if (ENABLE_DIRTY_CLIPPING) {
       // Clear the canvas,
       resetToRawTransform(ctx);
@@ -190,23 +190,6 @@ function VNScreen(canvas_window_element, config) {
       ctx.closePath();
     }
 
-    // Background image
-    // PENDING: For performance, we should be able to turn the painting of this
-    //   off.
-    resetTransform(ctx);
-    // Fill the buffer with transparency squares,
-    ctx.fillStyle = 'hsl(220, 0%, 96%)';
-    ctx.fillRect(0, 0, 1280, 720);
-    ctx.fillStyle = 'hsl(220, 0%, 89%)';
-    const SQUARE_SIZE = 64;
-    for (let ty = -1; ty < (720 / SQUARE_SIZE); ++ty) {
-      for (let tx = 0; tx < (1280 / SQUARE_SIZE); ++tx) {
-        if (((tx + ty) & 0x01) === 0) {
-          ctx.fillRect(tx * SQUARE_SIZE, (ty * SQUARE_SIZE) + 8, SQUARE_SIZE, SQUARE_SIZE);
-        }
-      }
-    }
-
     // Make sure the elements are sorted by depth, and add order,
     const len = canvas_elements.length;
     if (sort_depth_before_draw) {
@@ -220,23 +203,57 @@ function VNScreen(canvas_window_element, config) {
       sort_depth_before_draw = false;
     }
 
+    // If there's at least one dirty canvas element then we redraw the
+    // whole screen.
+
+    let has_one_dirty_el = false;
     for (let i = 0; i < len; ++i) {
       const el = canvas_elements[i];
-      const cstyle = el.getStyles();
-      // Do we draw the element?
-      if (cstyle.alpha > 0) {
-        // Yup,
-        // Translate the context to the element midpoint,
-        resetTransform(ctx);
-        ctx.translate(cstyle.x, cstyle.y);
-        ctx.rotate(cstyle.rotation);
-        ctx.scale(cstyle.scale_x, cstyle.scale_y);
-        ctx.globalAlpha = cstyle.alpha;
-        // Then call the draw function,
-        el.draw(ctx, out_vnscreen);
+      if (el.isDirty()) {
+        has_one_dirty_el = true;
+        break;
       }
     }
-    
+
+    if (has_one_dirty_el) {
+
+      // Background image
+      // PENDING: For performance, we should be able to turn the painting of this
+      //   off.
+      resetTransform(ctx);
+      // Fill the buffer with transparency squares,
+      ctx.fillStyle = 'hsl(220, 0%, 96%)';
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.fillStyle = 'hsl(220, 0%, 89%)';
+      const SQUARE_SIZE = 64;
+      for (let ty = -1; ty < (720 / SQUARE_SIZE); ++ty) {
+        for (let tx = 0; tx < (1280 / SQUARE_SIZE); ++tx) {
+          if (((tx + ty) & 0x01) === 0) {
+            ctx.fillRect(tx * SQUARE_SIZE, (ty * SQUARE_SIZE) + 8, SQUARE_SIZE, SQUARE_SIZE);
+          }
+        }
+      }
+
+      for (let i = 0; i < len; ++i) {
+        const el = canvas_elements[i];
+        el.resetDirty();
+        const cstyle = el.getStyles();
+        // Do we draw the element?
+        if (cstyle.alpha > 0) {
+          // Yup,
+          // Translate the context to the element midpoint,
+          resetTransform(ctx);
+          ctx.translate(cstyle.x, cstyle.y);
+          ctx.rotate(cstyle.rotation);
+          ctx.scale(cstyle.scale_x, cstyle.scale_y);
+          ctx.globalAlpha = cstyle.alpha;
+          // Then call the draw function,
+          el.draw(ctx, out_vnscreen);
+        }
+      }
+
+    }
+
   };
 
   

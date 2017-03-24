@@ -6,6 +6,8 @@ const { isUndefined } = require('./utils');
 
 function CanvasElement() {
   
+  let dirty = true;
+  
   const style = {
     x: 0,
     y: 0,
@@ -17,17 +19,20 @@ function CanvasElement() {
   };
   
   function setDepth(depth) {
-    style.depth = depth;
+    setStyle('depth', depth);
   };
   function setLocation(x, y) {
+    if (style.x !== x || style.y !== y) {
+      setDirty();
+    }
     style.x = x;
     style.y = y;
   };
   function setX(x) {
-    style.x = x;
+    setStyle('x', x);
   };
   function setY(y) {
-    style.y = y;
+    setStyle('y', y);
   };
   function setScale(x, y) {
     if (!isUndefined(x)) {
@@ -39,38 +44,51 @@ function CanvasElement() {
         style.scale_x = x;
         style.scale_y = y;
       }
+      setDirty();
     }
   };
   function setScaleX(sx) {
-    style.scale_x = sx;
+    setStyle('scale_x', sx);
   };
   function setScaleY(sy) {
-    style.scale_y = sy;
+    setStyle('scale_y', sy);
   };
   function setDrawAlpha(alpha) {
-    style.alpha = alpha;
+    setStyle('alpha', alpha);
   };
   function setRotation(rot) {
-    style.rotation = rot;
+    setStyle('rotation', rot);
   };
   function setNoScaleFactor(bool) {
-    style.noScaleFactor = bool;
+    setStyle('noScaleFactor', bool);
   };
   function setRawStyles(in_styles) {
-    for (let f in in_styles) {
-      // Protect 'type' field
-      if (f !== 'type') {
-        style[f] = in_styles[f];
-      }
+    for (const f in in_styles) {
+      setStyle(f, in_styles[f]);
     }
   };
   
   function setStyle(prop, val) {
+    if (style[prop] !== val) {
+      setDirty();
+    }
     style[prop] = val;
   };
   
   function getStyles() {
     return style;
+  };
+  
+  function setDirty() {
+    dirty = true;
+  };
+  
+  function isDirty() {
+    return dirty;
+  };
+  
+  function resetDirty() {
+    dirty = false;
   };
   
   function getBounds() {
@@ -113,6 +131,11 @@ function CanvasElement() {
     setRawStyles,
     setStyle,
     getStyles,
+    
+    setDirty,
+    isDirty,
+    resetDirty,
+    
   };
 
 }
