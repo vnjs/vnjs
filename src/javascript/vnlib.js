@@ -160,35 +160,16 @@ function VNScreen(canvas_window_element, config) {
   
 
   // Paints the view layer,
-  function paintViewLayer(ctx, time, dirty_areas) {
+  function paintViewLayer(ctx, time, force_repaint) {
 
     // Interpolate all elements,
     // Note; this provides us details about where the element was and where
     //  it's going between frames.
     const ai_len = active_interpolations.length;
 
-    const ENABLE_DIRTY_CLIPPING = config.enable_dirty_clipping;
-
     active_interpolations.forEach((ai) => {
-      if (ENABLE_DIRTY_CLIPPING) dirty_areas.push(ai.canvas_element.getBounds());
       ai.interpolate(time);
-      if (ENABLE_DIRTY_CLIPPING) dirty_areas.push(ai.canvas_element.getBounds());
     });
-
-    if (ENABLE_DIRTY_CLIPPING) {
-      // Clear the canvas,
-      resetToRawTransform(ctx);
-      // Clip,
-      ctx.beginPath();
-
-      dirty_areas.forEach((r) => {
-        ctx.rect(Math.floor(r.x * overall_scale), Math.floor(r.y * overall_scale),
-                            Math.ceil(r.wid * overall_scale), Math.ceil(r.hei * overall_scale));
-      });
-
-      ctx.clip();
-      ctx.closePath();
-    }
 
     // Make sure the elements are sorted by depth, and add order,
     const len = canvas_elements.length;
@@ -206,16 +187,18 @@ function VNScreen(canvas_window_element, config) {
     // If there's at least one dirty canvas element then we redraw the
     // whole screen.
 
-    let has_one_dirty_el = false;
-    for (let i = 0; i < len; ++i) {
-      const el = canvas_elements[i];
-      if (el.isDirty()) {
-        has_one_dirty_el = true;
-        break;
+    let do_repaint = force_repaint;
+    if (!force_repaint) {
+      for (let i = 0; i < len; ++i) {
+        const el = canvas_elements[i];
+        if (el.isDirty()) {
+          do_repaint = true;
+          break;
+        }
       }
     }
 
-    if (has_one_dirty_el) {
+    if (do_repaint) {
 
       // Background image
       // PENDING: For performance, we should be able to turn the painting of this
@@ -275,9 +258,6 @@ function VNScreen(canvas_window_element, config) {
       return;
     }
     
-    // Dirty areas that need to be repainted,
-    const dirty_areas = [];
-
     // If 'force_repaint' is true then we do a full repaint,
     const force_repaint = frame_needs_repaint;
 
@@ -287,27 +267,10 @@ function VNScreen(canvas_window_element, config) {
     // Start painting,
     canvas_2dctx.save();
     try {
-
-      if (config.enable_dirty_clipping) {
-        if (force_repaint) {
-          dirty_areas.push( Rectangle(0, 0, 1280, 720) );
-        }
-//        if (repaint_for_text_trail) {
-//          // The text trial area needs repainting,
-//          dirty_areas.push( Rectangle(diag_x, diag_y, diag_width, diag_height) );
-//        }
-        // Paint the view layer,
-        if (active_interpolations.length != 0 || dirty_areas.length > 0) {
-          paintViewLayer(canvas_2dctx, time, dirty_areas);
-        }
-      }
-      else {
-        paintViewLayer(canvas_2dctx, time, dirty_areas);
-      }
-
+      paintViewLayer(canvas_2dctx, time, force_repaint);
     }
     catch (e) {
-      console.log(e);
+      throw e;
     }
     finally {
       canvas_2dctx.restore();
