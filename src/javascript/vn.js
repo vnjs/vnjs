@@ -572,11 +572,21 @@ function FrontEnd() {
             canvas_element.el, canvas_element.target_style, time, easing);
   });;
   setROProp(UContext.prototype, 'system', context_system);
+  setROProp(UContext.prototype, 'getVNScreen', function() {
+    return vn_screen;
+  });
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
   setROProp(UContext.prototype, 'lib', {
+
     TextFormatter,
     TextTrail,
-    graphics: { roundedRect }
+    Interpolation,
+    
+    setElementStyle,
+    addInterpolations,
+
+    graphics: { roundedRect },
+    utils: { mergeConfig },
   });
 
   // Calls a user code function. The creates a context and executes the function.
@@ -649,6 +659,7 @@ function FrontEnd() {
     out.setDrawFunction = function(func) {
       ce.draw = func;
     }
+    // Function that returns the canvas element styles,
     out.getStyles = ce.getStyles;
     setElementStyle(out, args, { 'default':-1 } );
     return out;

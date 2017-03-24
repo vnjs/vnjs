@@ -2,12 +2,6 @@
 // Defines system constants Canvas Element constructors,
 
 
-const TextTrail = {%
-  function (args, context) {
-    return context.system.TextTrail(args, context);
-  }
-%}
-
 const LinearGradient = {%
   function (args, context) {
     return context.system.LinearGradient(args, context);
@@ -24,6 +18,49 @@ const Group = {%
   function (args, context) {
     return context.system.Group(args, context);
   }
+%}
+
+
+// A TextTrail object,
+const TextTrail = {%
+
+  // Anon-self invoking function to allow for constants,
+  (function() {
+
+    var DEFAULT_TTRAIL_CONFIG = {
+      font_family: 'sans-serif',
+      font_size: '25px',
+      font_color: '#ffffff',
+      pixels_between_words: 7,
+      line_height: 30
+    };
+
+    return function (args, context) {
+      var mergeConfig = context.lib.utils.mergeConfig;
+      var setElementStyle = context.lib.setElementStyle;
+      var vn_screen = context.getVNScreen();
+      
+      var ttconfig = {};
+      if (args.width !== void 0) ttconfig.buffer_width = args.width;
+      if (args.height !== void 0) ttconfig.buffer_height = args.height;
+
+      ttconfig = mergeConfig(ttconfig, args);
+      ttconfig = mergeConfig(ttconfig, DEFAULT_TTRAIL_CONFIG);
+      
+      var text_trail_ce = context.lib.TextTrail(vn_screen, ttconfig);
+      vn_screen.addCanvasElement(text_trail_ce);
+      
+      var out = {
+        args: args,
+        el: text_trail_ce
+      };
+
+      setElementStyle(out, args, { buffer_width:-1, buffer_height:-1 } );
+      return out;
+    }
+
+  })()
+
 %}
 
 
