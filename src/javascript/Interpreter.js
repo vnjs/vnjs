@@ -177,6 +177,10 @@ function Interpreter(parsed_vn) {
               { source_file, line:line_col.line, column:line_col.column };
     }
 
+    context.setSrcPosResolver(function(source_file, src_pos) {
+      return codebase[source_file].calcLineColumn(src_pos);
+    });
+
     context.setConstantsInfo( { constants_source_map,
                                 global_varset: parsed_vn.global_varset,
                                 var_dependencies: parsed_vn.var_dependencies } );

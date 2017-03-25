@@ -12,6 +12,8 @@ function Context(frontend) {
 
   let constants;
   
+  let src_pos_resolver;
+  
   // The global variables object (hidden and public),
   const global_vars = {};
 
@@ -182,7 +184,6 @@ function Context(frontend) {
       doLoadConstant(v);
     });
     return gc_count > 0;
-
   }
   
   function loadFunction(function_id, function_source_code) {
@@ -214,6 +215,16 @@ function Context(frontend) {
   function setSourceLocation(filename, src_pos) {
     cur_src_filename = filename;
     cur_src_pos = src_pos;
+  }
+
+  // Sets the source position resolver (called during initialization),
+  function setSrcPosResolver(fun) {
+    src_pos_resolver = fun;
+  }
+
+  function currentSourceLocationString() {
+    const line_col = src_pos_resolver(cur_src_filename, cur_src_pos);
+    return "(" + cur_src_filename + ":" + line_col.line + ":" + line_col.column + ")";
   }
   
   // The VNJS interpretation of truth, with respect to conditional branching
@@ -258,11 +269,20 @@ function Context(frontend) {
   function execCall(ident, args, cb) {
 
     // For function calls, we attempt to resolve all argument values, however if
-    // it's not possible because of a dependency on a static, the function is
+    // it's not possible because of a dependency on a constant, the function is
     // passed to the front end to be executed there.
 
-    const argv = convertArgs(args); 
-    frontend.execCall(ident, argv, cb);
+    // Ensure the identifier of the call is loaded in the front end,
+    const is_a_constant = loadConstants([ ident ], false);
+    // Check we loaded 'ident' as a global constant,
+    if (is_a_constant) {
+      // Process the arguments (allow access to global vars here),
+      const argv = convertArgs(args, false); 
+      frontend.execCall(ident, argv, cb);
+    }
+    else {
+      throw Error("Function not found; " + ident + " " + currentSourceLocationString());
+    }
 
   }
   
@@ -302,6 +322,7 @@ function Context(frontend) {
 
     initialize,
     setSourceLocation,
+    setSrcPosResolver,
     setConstantsInfo,
 
     execAssign,
