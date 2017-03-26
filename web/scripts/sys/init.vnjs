@@ -1,18 +1,51 @@
 
 // Defines system constants Canvas Element constructors,
 
+// ----- System object constructors -----
 
-const LinearGradient = {%
+// LinearGradient implementation
+const vnjs.object.LinearGradient = {%
   function (args, context) {
-    return context.system.LinearGradient(args, context);
+    var vn_screen = context.getVNScreen();
+    var out = {
+      args,
+    }
+    var fill_style = vn_screen.get2DContext().createLinearGradient(
+                          args.x1, args.y1, args.x2, args.y2);
+    // Define the mutator,
+    out.mutators = {
+      addColorStop: function(args) {
+        fill_style.addColorStop(args.stop, args.color);
+      }
+    };
+    out.val = fill_style;
+    return out;
   }
 %}
 
-const RadialGradient = {%
+
+
+// RadialGradient implementation
+const vnjs.object.RadialGradient = {%
   function (args, context) {
-    return context.system.RadialGradient(args, context);
+    var vn_screen = context.getVNScreen();
+    var out = {
+      args,
+    }
+    var fill_style = vn_screen.get2DContext().createRadialGradient(
+                          args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
+    // Define the mutator,
+    out.mutators = {
+      addColorStop: function(args) {
+        fill_style.addColorStop(args.stop, args.color);
+      }
+    };
+    out.val = fill_style;
+    return out;
   }
 %}
+
+
 
 const Group = {%
   function (args, context) {
@@ -21,8 +54,9 @@ const Group = {%
 %}
 
 
+
 // A TextTrail object,
-const TextTrail = {%
+const vnjs.object.TextTrail = {%
 
   // Anon-self invoking function to allow for constants,
   (function() {
@@ -37,7 +71,6 @@ const TextTrail = {%
 
     return function (args, context) {
       var mergeConfig = context.lib.utils.mergeConfig;
-      var setElementStyle = context.lib.setElementStyle;
       var vn_screen = context.getVNScreen();
       
       var ttconfig = {};
@@ -55,7 +88,7 @@ const TextTrail = {%
         el: text_trail_ce
       };
 
-      setElementStyle(out, args, { buffer_width:-1, buffer_height:-1 } );
+      context.setElementStyle(out, args, { buffer_width:-1, buffer_height:-1 } );
       return out;
     }
 
@@ -168,8 +201,216 @@ const vnjs.object.TextArt = {%
 %}
 
 
+// ----- System call library -----
+
+
+const vnjs.fun.debug = {%
+  function(args, context, resolve, reject) {
+    if ('default' in args) {
+      console.log(args.default);
+    }
+    for (var a in args) {
+      if (a === 'default') {
+        continue;
+      }
+      console.log(a + " = ", args[a]);
+    }
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.preloadAssets = {%
+  function(args, context, resolve, reject) {
+    var to_preload = args.default;
+    console.error("PENDING: preloadAssets for: ", to_preload);
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.preloadFont = {%
+  function(args, context, resolve, reject) {
+    var font_family = args.default;
+    context.getVNScreen().preloadFont(font_family, function() {
+      // Complete,
+      resolve();
+    });
+  }
+%}
+
+
+
+const vnjs.fun.setDefaultTextTrail = {%
+  function(args, context, resolve, reject) {
+    
+    var text_trail = args.default;
+    var enter = args.enter;
+    var exit = args.exit;
+
+    // Set the default text trail,
+    context.setTextTrail('default', text_trail, enter, exit);
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.setTextTrail = {%
+  function(args, context, resolve, reject) {
+    
+    var text_trail = args.default;
+    var tt_name = args.name;
+    var enter = args.enter;
+    var exit = args.exit;
+    
+    context.setTextTrail(tt_name, text_trail, enter, exit);
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.setStyle = {%
+  function(args, context, resolve, reject) {
+    
+    var element = args.default;
+    context.setElementStyle(element, args, { 'default':-1 } );
+    // Repaint the screen,
+    context.getVNScreen().repaint();
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.setTargetStyle = {%
+  function(args, context, resolve, reject) {
+
+    var element = args.default;
+    var target_style = context.convertToRawStyles(args, { 'default':-1 } );
+
+    element.target_style = target_style;
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.animate = {%
+  function(args, context, resolve, reject) {
+    
+    var element = args.default;
+    var time = args.time;
+    var easing = args.easing;
+
+    context.addInterpolations(element.el, element.target_style, time, easing);
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const vnjs.fun.announce = {%
+  function(args, context, resolve, reject) {
+    
+    var vn_screen = context.getVNScreen();
+    
+    var text = args.default;
+    var trail_target = args.trail;
+    // The target trail to make the announcement,
+    if (trail_target === void 0) {
+      trail_target = 'default';
+    }
+    // After, should we wait for interaction? (default: wait on interact)
+    var until = args.until;
+    var continueAfter = args.continueAfter;
+    if (until === void 0) {
+      until = 'interact';
+    }
+    else if (util === 'interactOrWait') {
+      until = 'interact';
+    }
+
+    var text_trail = context.getTextTrail(trail_target);
+    if (!text_trail.displayed) {
+      text_trail.displayed = true;
+      context.callUserCode(text_trail.enter_fun, {});
+    }
+
+    // Measure and format the text to be displayed,
+    text_trail.el.resetAnimationPoint();
+    text_trail.el.measureAndLayoutText(text);
+
+    // How long will it take to display this layout?
+    var time_to_complete = text_trail.el.getTotalTimeMS();
+
+    // The interpolation target,
+    text_trail.el.getStyles().time = 0;
+    var dstyle = { time: time_to_complete };
+    // Start the animation interpolation,
+    context.addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
+
+    // Do we wait on interact?
+    if (until === 'interact') {
+      var finish_cb = function() {
+        // Clear the animation before we callback after interact,
+        text_trail.el.clearAnimation();
+        // Complete,
+        resolve();
+      };
+
+      if (continueAfter === void 0) {
+        vn_screen.setInteractCallback(finish_cb);
+      }
+      else {
+        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+      }
+    }
+    // No, so continue to next instruction,
+    else {
+      // Complete,
+      resolve();
+    }
+    
+  }
+%}
+
+
+
+
+
 // Aliases,
-const TextArt = vnjs.object.TextArt;
-const Rectangle = vnjs.object.Rectangle;
 
+// Objects,
+const LinearGradient = vnjs.object.LinearGradient;
+const RadialGradient = vnjs.object.RadialGradient;
+const TextTrail      = vnjs.object.TextTrail;
+const Rectangle      = vnjs.object.Rectangle;
+const TextArt        = vnjs.object.TextArt;
 
+// System calls,
+const debug          = vnjs.fun.debug;
+const preloadAssets  = vnjs.fun.preloadAssets;
+const preloadFont    = vnjs.fun.preloadFont;
+const setDefaultTextTrail = vnjs.fun.setDefaultTextTrail;
+const setTextTrail   = vnjs.fun.setTextTrail;
+const setStyle       = vnjs.fun.setStyle;
+const setTargetStyle = vnjs.fun.setTargetStyle;
+const animate        = vnjs.fun.animate;
+const announce       = vnjs.fun.announce;

@@ -126,9 +126,6 @@ function FrontEnd() {
   // All the system calls,
   const system_calls = {};
 
-  // The context.system object,
-  const context_system = {};
-
   // The public global variables object,
   const global_vars = {};
 
@@ -244,27 +241,33 @@ function FrontEnd() {
     return out;
   }
   
-  // Creates an object from the given constructor name.
-  function constantConstruction(name, params) {
-    // Look up the constructor object,
+  function toJavaScriptFunction(name) {
+    // Look up the function,
     if (!(name in constant_var_defs)) {
       throw Error('Constant not found: ' + name);
     }
-    // Resolve the constructor function,
-    let constructor_fun = resolveConstant(name);
+    // Resolve the constant to a function,
+    let constant_fun = resolveConstant(name);
     // Dynamic function,
-    let src_loc = constructor_fun.src_loc;
-    if (constructor_fun.type === 'd') {
+    let src_loc = constant_fun.src_loc;
+    if (constant_fun.type === 'd') {
       // This must resolve to an inline function,
-      constructor_fun = constructor_fun.func.call(null, constants_resolver);
+      constant_fun = constant_fun.func.call(null, constants_resolver);
     }
-    if (constructor_fun.type !== 'i') {
+    if (constant_fun.type !== 'i') {
       throw Error(
-          'Expect an inline constructor function; ' +
+          'Expect an inline function; ' +
           src_loc.source_file + ":" + src_loc.line + ":" + src_loc.column);
     }
     // The constructor function to call,
-    const javascript_fun = constructor_fun.func;
+    const javascript_fun = constant_fun.func;
+    return javascript_fun;
+  }
+  
+  // Creates an object from the given constructor name.
+  function constantConstruction(name, params) {
+    // The constructor function to call,
+    const javascript_fun = toJavaScriptFunction(name);
     
     // Call the user code to construct the object,
     const out = callUserCode(javascript_fun, params);
@@ -275,6 +278,16 @@ function FrontEnd() {
 
     return out;
   }
+  
+  // Executes the function with the given name.
+  function constantExecute(name, params, resolve, reject) {
+    // The constructor function to call,
+    const javascript_fun = toJavaScriptFunction(name);
+    // Call the user code for the function to execute,
+    callUserCode(javascript_fun, params, resolve, reject);
+  }
+  
+  
   
   function constructConstantDef(ident, def) {
     
@@ -565,32 +578,46 @@ function FrontEnd() {
   }
   setROProp(UContext.prototype, 'setTargetStyle', function( canvas_element, style ) {
     canvas_element.target_style = convertToRawStyles( style );
-  });;
+  });
   setROProp(UContext.prototype, 'animate', function( canvas_element, anim_args ) {
     const { easing, time } = anim_args;
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);
-  });;
-  setROProp(UContext.prototype, 'system', context_system);
+  });
   setROProp(UContext.prototype, 'getVNScreen', function() {
     return vn_screen;
   });
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
-  setROProp(UContext.prototype, 'lib', {
+  setROProp(UContext.prototype, 'setElementStyle', setElementStyle);
+  setROProp(UContext.prototype, 'convertToRawStyles', convertToRawStyles);
+  setROProp(UContext.prototype, 'addInterpolations', addInterpolations);
+  setROProp(UContext.prototype, 'setTextTrail', setTextTrail);
+  setROProp(UContext.prototype, 'getTextTrail', getTextTrail);
+  setROProp(UContext.prototype, 'callUserCode', callUserCode);
+//  setROProp(UContext.prototype, '', );
+  
+  const context_lib = {
 
     TextFormatter,
     TextTrail,
     Interpolation,
-    
-    setElementStyle,
-    addInterpolations,
 
-    graphics: { roundedRect },
-    utils: { mergeConfig },
-  });
+    graphics: Object.freeze({
+      roundedRect
+    }),
+    utils: Object.freeze({
+      mergeConfig
+    }),
+  };
+  
+  setROProp(UContext.prototype, 'lib', Object.freeze(context_lib));
+
+  // Freeze the 'UContext' class,
+  Object.freeze(UContext);
+  Object.freeze(UContext.prototype);
 
   // Calls a user code function. The creates a context and executes the function.
-  function callUserCode(func, args) {
+  function callUserCode(func, args, resolve, reject) {
 
     const context = new UContext();
     let tc_valid_objects;
@@ -633,7 +660,7 @@ function FrontEnd() {
       throw Error('Access to ' + constant_name + ' not permitted');
     };
 
-    return func.call(null, args, context);
+    return func.call(null, args, context, resolve, reject);
 
   }
   
@@ -677,219 +704,12 @@ function FrontEnd() {
     text_trail.exit_fun = exit;
     text_trail.displayed = false;
   }
-  
+
   function getTextTrail(name) {
     return text_trail_element_map[name];
   }
-  
-  
-  // ---- System API calls ----
-
-  // Prints a debug message to console,
-  system_calls.debug = function(args, cb) {
-    console.log(args.default);
-    cb();
-  };
-  system_calls.preloadAssets = function(args, cb) {
-    const to_preload = args.default;
-    console.log("PENDING: preloadAssets for: ", to_preload);
-    cb();
-  };
-  
-  
-  // Set the default text trail (where announcements go)
-  system_calls.setDefaultTextTrail = function(args, cb) {
-    const text_trail = args.default;
-    const enter = args.enter;
-    const exit = args.exit;
-
-    // Set the default text trail,
-    setTextTrail('default', text_trail, enter, exit);
-    cb();
-  };
-  
-  // Sets a named text trail,
-  system_calls.setTextTrail = function(args, cb) {
-    const text_trail = args.default;
-    const tt_name = args.name;
-    const enter = args.enter;
-    const exit = args.exit;
-    
-    setTextTrail(tt_name, text_trail, enter, exit);
-    cb();
-  };
-  
-  // Sets the style properties of a screen element,
-  system_calls.setStyle = function(args, cb) {
-    const element = args.default;
-    
-    setElementStyle(element, args, { 'default':-1 } );
-    
-    // Repaint the screen,
-    vn_screen.repaint();
-
-    cb();
-  };
-
-  // Sets the target style of the given element in the next 'animate' call,
-  system_calls.setTargetStyle = function(args, cb) {
-    const element = args.default;
-    const target_style = convertToRawStyles(args, { 'default':-1 } );
-
-    element.target_style = target_style;
-
-    cb();
-  };
-  
-  // Animate one or more style properties of an element,
-  system_calls.animate = function(args, cb) {
-    const element = args.default;
-    const { time, easing } = args;
-
-    addInterpolations(element.el, element.target_style, time, easing);
-
-    cb();
-  };
-  
-  // Announce text on the default text trail,
-  system_calls.announce = function(args, cb) {
-    const text = args.default;
-    let trail_target = args.trail;
-    // The target trail to make the announcement,
-    if (trail_target === void 0) {
-      trail_target = 'default';
-    }
-    // After, should we wait for interaction? (default: wait on interact)
-    let until = args.until;
-    let continueAfter = args.continueAfter;
-    if (until === void 0) {
-      until = 'interact';
-    }
-    else if (util === 'interactOrWait') {
-      until = 'interact';
-    }
-
-    const text_trail = getTextTrail(trail_target);
-    if (!text_trail.displayed) {
-      text_trail.displayed = true;
-      callUserCode(text_trail.enter_fun, {});
-    }
-
-    // Measure and format the text to be displayed,
-    text_trail.el.resetAnimationPoint();
-    text_trail.el.measureAndLayoutText(text);
-
-    // How long will it take to display this layout?
-    const time_to_complete = text_trail.el.getTotalTimeMS();
-
-    // The interpolation target,
-    text_trail.el.getStyles().time = 0;
-    const dstyle = { time: time_to_complete };
-    // Start the animation interpolation,
-    addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
-
-    // Do we wait on interact?
-    if (until === 'interact') {
-      const finish_cb = () => {
-        // Clear the animation before we callback after interact,
-        text_trail.el.clearAnimation();
-        cb();
-      };
-      
-      if (continueAfter === void 0) {
-        vn_screen.setInteractCallback(finish_cb);
-      }
-      else {
-        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
-      }
-    }
-    // No, so continue to next instruction,
-    else {
-      cb();
-    }
-
-  };
-
-  
-  
-  // Preloads fonts,
-  system_calls.preloadFont = function(args, cb) {
-    const font_family = args.default;
-    vn_screen.preloadFont(font_family, cb);
-  };
 
 
-  // ---- Constructors ----
-
-  // TextTrail object.
-  const DEFAULT_TTRAIL_CONFIG = {
-    font_family: 'sans-serif',
-    font_size: '25px',
-    font_color: '#ffffff',
-    pixels_between_words: 7,
-    line_height: 30
-  };
-  context_system.TextTrail = function(args) {
-    let ttconfig = {};
-//    if (args.font_family !== void 0) ttconfig.default_font_family = args.font_family;
-//    if (args.font_size !== void 0) ttconfig.default_font_size = args.font_size;
-//    if (args.font_color !== void 0) ttconfig.default_font_color = args.font_color;
-    if (args.width !== void 0) ttconfig.buffer_width = args.width;
-    if (args.height !== void 0) ttconfig.buffer_height = args.height;
-
-    ttconfig = mergeConfig(ttconfig, args);
-    ttconfig = mergeConfig(ttconfig, DEFAULT_TTRAIL_CONFIG);
-    const text_trail = TextTrail(vn_screen, ttconfig);
-    vn_screen.addCanvasElement(text_trail);
-
-    const out = {
-      args,
-      el: text_trail,
-    };
-
-    // Set initial canvas style properties,
-    setElementStyle(out, args,
-        { buffer_width:-1, buffer_height:-1 } );
-    return out;
-  };
-
-  // Linear gradient object.
-  context_system.LinearGradient = function(args) {
-    const out = {
-      args,
-    }
-    const fill_style = vn_screen.get2DContext().createLinearGradient(
-                          args.x1, args.y1, args.x2, args.y2);
-    // Define the mutator,
-    out.mutators = {
-      addColorStop: function(args) {
-        fill_style.addColorStop(args.stop, args.color);
-      }
-    };
-    out.val = fill_style;
-    return out;
-  };
-
-  // Radial gradient object.
-  context_system.RadialGradient = function(args) {
-    const out = {
-      args,
-    }
-    const fill_style = vn_screen.get2DContext().createRadialGradient(
-                          args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
-    // Define the mutator,
-    out.mutators = {
-      addColorStop: function(args) {
-        fill_style.addColorStop(args.stop, args.color);
-      }
-    };
-    out.val = fill_style;
-    return out;
-  };
-
-  
-  
-  
   // ---- System API calls ----
   
   // Initialize the context VNJS javascript API,
@@ -917,7 +737,7 @@ function FrontEnd() {
   }
   
   function loadFunction(function_id, function_source_code) {
-    const compiled_fun = eval(function_source_code);
+    const compiled_fun = eval.call(null, function_source_code);
     function_load_map[function_id] = compiled_fun;
   }
 
@@ -928,19 +748,17 @@ function FrontEnd() {
 
   function execCall(ident, args, cb) {
 
-    // Dispatch the command,
-    
-    // Is it a system API call?
-    const syscall = system_calls[ident];
     const jsargs = toJSParameterMap(args);
-    if (syscall !== void 0) {
-      // Yes, it's a system call,
-      syscall(jsargs, cb);
-    }
-    else {
-      console.log("PENDING: frontend.execCall ", ident, jsargs);
-      cb( null, { status:'callret' } );
-    }
+
+    // Dispatch the command,
+    constantExecute(ident, jsargs,
+      function(result) {  // resolve
+        cb( null, { status:result } );
+      },
+      function(error) {  // reject
+        cb( error );
+      }
+    );
 
   }
 
