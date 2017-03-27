@@ -218,7 +218,7 @@ function FrontEnd() {
               // pass it the constants access object,
               const arg1 = arguments[1];
               if (arg1 !== void 0 && arg1 instanceof UContext) {
-                arg1.allowAccess(constants_access);
+                arg1._allowAccess(constants_access);
               }
               return call_fun.apply(null, arguments);
             }
@@ -310,7 +310,7 @@ function FrontEnd() {
     // Inline JavaScript code and mutators,
     else if (type === 'i') {
       const func_factory = eval.call(null, fdef[1]);
-      const constants_access = [];
+      const constants_access = {};
       constant_ob =
           { type:     'i',
             func:     func_factory,
@@ -323,10 +323,18 @@ function FrontEnd() {
         const args = toJSParameterMap(def[i][2]);
         if (mutator_name === 'registerConstant') {
           // Register constant for this function to be able to access,
-          constants_access.push(args['default']);
+          const constant_val = args['default'];
+          const constant_key = args['key'];
+          if (constant_key === void 0 || typeof constant_key !== 'string') {
+            throw Error("Expecting 'key' string parameter in 'registerConstant' mutator for: " + ident);
+          }
+          if (constant_val === void 0) {
+            throw Error("Expecting 'default' parameter in 'registerConstant' mutator for: " + ident);
+          }
+          constants_access[constant_key] = constant_val;
         }
         else {
-          throw Error("Unknown inline mutator: " + mutator_name);
+          throw Error("Unknown inline mutator '" + mutator_name + "' for: " + ident);
         }
       }
     }
@@ -625,6 +633,8 @@ function FrontEnd() {
   // Freeze the 'UContext' class,
   Object.freeze(UContext);
   Object.freeze(UContext.prototype);
+  
+  const EMPTY_OBJECT = {};
 
   // Calls a user code function. The creates a context and executes the function.
   function callUserCode(func, args, resolve, reject) {
@@ -635,7 +645,7 @@ function FrontEnd() {
     context._ucodetype = (resolve !== void 0) ? 'FUNCTION' : 'CONSTRUCTOR';
     let tc_valid_objects;
 
-    context.allowAccess = function(valid_objects) {
+    context._allowAccess = function(valid_objects) {
       if (tc_valid_objects === void 0) {
         tc_valid_objects = valid_objects;
       }
@@ -643,34 +653,14 @@ function FrontEnd() {
         throw Error("Permission denied");
       }
     };
-    context.getConstant = function(constant_name) {
-      // Fetch the value of the constant,
-      const cvar = constant_vars[constant_name];
-      // Check the user code allows access to this constant,
-      if (cvar !== void 0) {
-        // The object to test the constant against,
-        let test_obj;
-        if (typeof cvar === 'object') {
-          if (cvar.type === 'i') {
-            test_obj = cvar.func;
-          }
-          else if (cvar.type === 'c') {
-            test_obj = cvar.obj;
-          }
-        }
-        else {
-          test_obj = cvar;
-        }
-        
-        // For each valid object,
-        for (let i = 0; i < tc_valid_objects.length; ++i) {
-          // If it matches the object we accessed then permission granted,
-          if (test_obj === tc_valid_objects[i]) {
-            return test_obj;
-          }
+    context.getConstant = function(constant_key) {
+      if (tc_valid_objects !== void 0) {
+        const val = tc_valid_objects[constant_key];
+        if (val !== void 0) {
+          return val;
         }
       }
-      throw Error('Access to ' + constant_name + ' not permitted');
+      throw Error('Access to ' + constant_key + ' not permitted');
     };
 
     return func.call(null, args, context, resolve, reject);
