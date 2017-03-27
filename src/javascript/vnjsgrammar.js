@@ -37,7 +37,8 @@ function $(o) {
     'or':-1,
     'goto':-1,
     'preserve':-1,
-    'evaluate':-1
+    'evaluate':-1,
+    'from':-1
   };
 
 
@@ -119,6 +120,7 @@ function $(o) {
   var IF =     isWord('if');
   var ELSE =   isWord('else');
   var IMPORT = isWord('import');
+  var FROM =   isWord('from');
   var GOTO =   isWord('goto');
   var DEFINE = isWord('define');
   var AND =    isWord('and');
@@ -145,7 +147,6 @@ function $(o) {
       return reject;
     }
     return str;
-//    return { loc:loc, t:'LOCAL', v:str };
   };
 
 
@@ -288,6 +289,8 @@ var grammar = {
     {"name": "expression", "symbols": ["binaryOp"], "postprocess": id},
     {"name": "local_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
     {"name": "ns_local_ident", "symbols": ["namespaced_ident"], "postprocess": toLocalIdent},
+    {"name": "import_ident", "symbols": [MULT], "postprocess": function(d) { return '*'; }},
+    {"name": "import_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
     {"name": "simpleArgAssign", "symbols": ["valueOrPareth"], "postprocess": 
         function(d, loc) {
           return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
@@ -356,7 +359,7 @@ var grammar = {
           return { loc:loc, f:'call', l:d[0], r:d[4] }
         }
         },
-    {"name": "baseFunctionCall", "symbols": ["ns_local_ident", "_", PERIOD, "_", "mutatorFunctionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
+    {"name": "baseMutatorCall", "symbols": ["ns_local_ident", "_", PERIOD, "_", "mutatorFunctionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
     {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
     {"name": "constRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "constRightSide", "symbols": ["functionCall", "_", SEMICOLON], "postprocess": nth(0)},
@@ -402,9 +405,9 @@ var grammar = {
           return { loc:loc, f:d[0][1], l:d[2] }
         }
         },
-    {"name": "importstatement", "symbols": [IMPORT, "__", "stringval", "_", SEMICOLON], "postprocess": 
+    {"name": "importstatement", "symbols": [IMPORT, "_", "import_ident", "_", FROM, "_", "stringval", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'import', l:d[2] }
+          return { loc:loc, f:'import', l:d[2], r:d[6] }
         }
         },
     {"name": "conststatement", "symbols": [CONST, "__", "ns_local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
@@ -423,18 +426,26 @@ var grammar = {
     {"name": "nestedStatement", "symbols": ["ifstatement"], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["langstatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["conststatement"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["baseFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "baseStatement", "symbols": ["baseMutatorCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["definestatement"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["importstatement"], "postprocess": nth(0)},
     {"name": "nestedStatements$ebnf$1$subexpression$1", "symbols": ["_", "nestedStatement"]},
     {"name": "nestedStatements$ebnf$1", "symbols": ["nestedStatements$ebnf$1$subexpression$1"]},
     {"name": "nestedStatements$ebnf$1$subexpression$2", "symbols": ["_", "nestedStatement"]},
     {"name": "nestedStatements$ebnf$1", "symbols": ["nestedStatements$ebnf$1", "nestedStatements$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "nestedStatements", "symbols": ["nestedStatements$ebnf$1"], "postprocess": toList(0, 1)},
     {"name": "baseStatements$ebnf$1", "symbols": []},
-    {"name": "baseStatements$ebnf$1$subexpression$1", "symbols": ["_", "baseStatement"]},
+    {"name": "baseStatements$ebnf$1$subexpression$1", "symbols": ["_", "importstatement"]},
     {"name": "baseStatements$ebnf$1", "symbols": ["baseStatements$ebnf$1", "baseStatements$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "baseStatements", "symbols": ["baseStatements$ebnf$1"], "postprocess": toList(0, 1)}
+    {"name": "baseStatements$ebnf$2", "symbols": []},
+    {"name": "baseStatements$ebnf$2$subexpression$1", "symbols": ["_", "baseStatement"]},
+    {"name": "baseStatements$ebnf$2", "symbols": ["baseStatements$ebnf$2", "baseStatements$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "baseStatements", "symbols": ["baseStatements$ebnf$1", "baseStatements$ebnf$2"], "postprocess": 
+        function(d) {
+          var import_list = toList(0, 1)(d);
+          var rest_list = toList(1, 1)(d);
+          return import_list.concat(rest_list);
+        }
+        }
 ]
   , ParserStart: "vnjs"
 }

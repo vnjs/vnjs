@@ -576,15 +576,25 @@ function FrontEnd() {
   // provides access to the context in general,
   function UContext() {
   }
-  setROProp(UContext.prototype, 'setTargetStyle', function( canvas_element, style ) {
+  setROProp(UContext.prototype, 'setTargetStyle', ( canvas_element, style ) => {
     canvas_element.target_style = convertToRawStyles( style );
   });
-  setROProp(UContext.prototype, 'animate', function( canvas_element, anim_args ) {
+  setROProp(UContext.prototype, 'animate', ( canvas_element, anim_args ) => {
     const { easing, time } = anim_args;
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);
   });
-  setROProp(UContext.prototype, 'getVNScreen', function() {
+  setROProp(UContext.prototype, 'assertFunction', function() {
+    if (this._ucodetype !== 'FUNCTION') {
+      throw Error('Expecting Function');
+    }
+  });
+  setROProp(UContext.prototype, 'assertConstructor', function() {
+    if (this._ucodetype !== 'CONSTRUCTOR') {
+      throw Error('Expecting Constructor');
+    }
+  });
+  setROProp(UContext.prototype, 'getVNScreen', () => {
     return vn_screen;
   });
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
@@ -620,6 +630,9 @@ function FrontEnd() {
   function callUserCode(func, args, resolve, reject) {
 
     const context = new UContext();
+    // HACKY,
+    // If 'resolve' is undefined then this is a constructor call,
+    context._ucodetype = (resolve !== void 0) ? 'FUNCTION' : 'CONSTRUCTOR';
     let tc_valid_objects;
 
     context.allowAccess = function(valid_objects) {
@@ -695,7 +708,7 @@ function FrontEnd() {
   // Sets a named text trail. Use a name of 'default' to set the default text
   // trail.
   function setTextTrail(name, text_trail, enter, exit) {
-    if (text_trail === void 0 || text_trail.ob !== 'TextTrail') {
+    if (text_trail === void 0 || text_trail.ob !== 'lang#system#TextTrail') {
       throw Error('Assert failed: expecting a text trail object');
     }
     text_trail_element_map[name] = text_trail;
@@ -794,7 +807,7 @@ function gameLaunch() {
   //   for the server and dispatch on the messages as appropriate.
 
   // Load and parse the scene file,
-  const file_set = [ 'sys/init.vnjs', 'start.vnjs' ];
+  const file_set = [ 'lang/system.vnjs', 'start.vnjs' ];
   loadAndParseScene(file_set, function(parsed_vn) {
     
     const front_end = FrontEnd();

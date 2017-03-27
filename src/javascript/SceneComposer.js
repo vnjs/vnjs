@@ -163,7 +163,7 @@ function SceneComposer() {
 
     // Converts string into string expression if necessary. For example,
     // 'Hello ${player_name}.' converts to ('Hello ' + p.getV('player_name') + '.')
-    function toStringExpr(in_tok, stats) {
+    function toStringExpr(in_tok, stats, reference_qualifier) {
       let out = '';
       const str = in_tok.v;
       const len = str.length;
@@ -214,7 +214,7 @@ function SceneComposer() {
 
           // Form the expression,
           const res = expression_parser.results[0];
-          out += lhs + " + (" + expr(res, stats) + ") + ";
+          out += lhs + " + (" + expr(res, stats, reference_qualifier) + ") + ";
 
           sp = i + 1;
           block_start = -1;
@@ -233,12 +233,13 @@ function SceneComposer() {
 
     }
 
-    function expr(p, stats) {
+    function expr(p, stats, reference_qualifier) {
       // NOTE: Duck typing,
       if (typeof p === 'string') {
+        const qualified_ident = reference_qualifier(p);
         // Local ident
-        stats.ids.push(p);
-        return "p.getV('" + p + "')";
+        stats.ids.push(qualified_ident);
+        return "p.getV('" + qualified_ident + "')";
       }
       // If token,
       else if (p.t) {
@@ -249,11 +250,11 @@ function SceneComposer() {
           case 'BOOLEAN':
             return v.toString();
           case 'STRING':
-            return toStringExpr(p, stats);
+            return toStringExpr(p, stats, reference_qualifier);
           case 'NULL':
             return "null";
           case '(':
-            return '( ' + expr(v, stats) + ' )';
+            return '( ' + expr(v, stats, reference_qualifier) + ' )';
           default:
             throw Error("Unknown token:" + t);
         }
@@ -261,7 +262,7 @@ function SceneComposer() {
       // If function,
       else {
         const { f, l, r } = p;
-        let s = expr(l, stats);
+        let s = expr(l, stats, reference_qualifier);
 
         switch (f) {
 
@@ -320,69 +321,93 @@ function SceneComposer() {
           default:
             throw Error("Unknown function:", f);
         }
-        s += expr(r, stats);
+        s += expr(r, stats, reference_qualifier);
         return s;
       }
     }
     
+    // Compiles a function expression,
+    function compileFunctionExpression(pt, parent_loc, stats, ref_qualifier, no_source_map) {
+
+      // Create the JavaScript that executes the operation,
+      let evaluation_string = expr(pt, stats, ref_qualifier);
+
+      // Generate the function using 'eval',
+      let gen_function_source = '(function (p) { return ' + evaluation_string + ' })';
+
+      // Otherwise we have to evaluate at runtime.
+      if ( !no_source_map && INCLUDE_SOURCEMAP_FOR_FUNCTIONS ) {
+        const gen_loc = (typeof pt === 'string') ? parent_loc : pt.loc;
+        if (gen_loc !== void 0) {
+          // Embed a url encoded source map for this function,
+          // This helps us with debugging. If this function generates an exception
+          // then the stacktrace will reference the true source of the error.
+          const pos = calculateScriptPosition(code_source, calcAddress(gen_loc));
+          const generator = new sourceMap.SourceMapGenerator({});
+          generator.addMapping({
+            source: filename,
+            original: pos,
+            generated: EVAL_GEN_POS
+          });
+          gen_function_source += toInlineBase64Inline(generator, '\n');
+        }
+        else {
+          console.error(pt);
+          throw Error("Unable to generate source map for expression");
+        }
+      }
+      return gen_function_source;
+    }
+
     // Converts parse tree of an expression to an anonymous javascript function, or
     // a constant. If this method returns a function then it can be used when
     // necessary by the interpreter.
-    function toJSValue(pt, parent_loc) {
+    function toJSValue(pt, parent_loc, ref_array) {
       if (pt === null) {
         return null;
       }
-    
-      let stats = { ids:[] };
-    
-      // Create the JavaScript that executes the operation,
-      let evaluation_string = expr(pt, stats);
-    
-      // Generate the function using 'eval',
-      let gen_function_source = '(function (p) { return ' + evaluation_string + ' })';
+
+      // The "don't qualify" qualifier,
+      const no_qualifier = (p) => { return p };
+      const stats = { ids:[] };
+
+      // Compile the expression into source code so we can work out dependencies
+      // and possibly execute it if we know it produces a static result,
+      const gen_function_source =
+              compileFunctionExpression(pt, parent_loc, stats, no_qualifier, true);
       
       // If there are no idents used in the expression then it's safe to execute it
       // here to produce a constant,
+      // For example '(10 * 20)',
       if (stats.ids.length === 0) {
         let generated_function = eval(gen_function_source);
         return [ 'value', generated_function() ];
       }
       else {
-        const gen_loc = (typeof pt === 'string') ? parent_loc : pt.loc;
-        // Otherwise we have to evaluate at runtime.
-        if ( INCLUDE_SOURCEMAP_FOR_FUNCTIONS) {
-          if (gen_loc !== void 0) {
-            // Embed a url encoded source map for this function,
-            // This helps us with debugging. If this function generates an exception
-            // then the stacktrace will reference the true source of the error.
-            const pos = calculateScriptPosition(code_source, calcAddress(gen_loc));
-            const generator = new sourceMap.SourceMapGenerator({});
-            generator.addMapping({
-              source: filename,
-              original: pos,
-              generated: EVAL_GEN_POS
-            });
-            gen_function_source += toInlineBase64Inline(generator, '\n');
+        // Otherwise we return a function that creates the source code to be
+        // qualified later,
+        const sourceGenerator = function sourceGenerator(ref_qualifier, stats) {
+          if (stats === void 0) {
+            stats = { ids:[] };
           }
-          else {
-            console.error(pt);
-            throw Error("Unable to generate source map for expression");
-          }
-        }
-        return [ 'function', gen_function_source, stats.ids, createUniqueFunctionID() ];
+          return compileFunctionExpression(pt, parent_loc, stats, ref_qualifier, false);
+        };
+        const fun_a = [ 'function', sourceGenerator, stats.ids, createUniqueFunctionID() ];
+        ref_array.push(fun_a);
+        return fun_a;
       }
 
     }
     
     // Parse the args set,
-    function toArgs(pt) {
+    function toArgs(pt, ref_array) {
       // Assert,
       assert(pt.t === 'ARGS');
       
       const d = pt.d;
       const out = {};
       for (let k in d) {
-        out[k] = toJSValue(d[k], pt.loc);
+        out[k] = toJSValue(d[k], pt.loc, ref_array);
       }
 
       return out;
@@ -430,14 +455,14 @@ function SceneComposer() {
       return function_string + toInlineBase64Inline(generator, nl_separator);
     }
     
-    function prepareFunction(func) {
+    function prepareFunction(func, ref_array) {
       const ident = func.l;
-      const args = toArgs(func.r);
+      const args = toArgs(func.r, ref_array);
       return [ 'call', ident, args ];
     }
     
     // Given a block of code, produces the functional code to be executed,
-    function prepareBlock(block) {
+    function prepareBlock(block, ref_array, nb_call_array) {
       // Assert,
       assert(block.t === 'BLOCK');
       
@@ -460,11 +485,13 @@ function SceneComposer() {
           
           if (fun === '=') {          // Assignment,
             const ident = stmt.l;
-            const jsf = toJSValue(stmt.r, stmt.loc);
+            const jsf = toJSValue(stmt.r, stmt.loc, ref_array);
             exec_block.stmts.push( [ calcAddress(stmt.loc), 'assign', ident, jsf ] );
           }
           else if (fun === 'call') {  // Function call
-            exec_block.stmts.push( [ calcAddress(stmt.loc), 'nbcall', prepareFunction(stmt) ] );
+            const nbcall = [ calcAddress(stmt.loc), 'nbcall', prepareFunction(stmt, ref_array) ];
+            nb_call_array.push(nbcall);
+            exec_block.stmts.push(nbcall);
           }
           // Language operations,
           else if (fun === 'goto' || fun === 'preserve' || fun === 'evaluate') {
@@ -486,13 +513,13 @@ function SceneComposer() {
             // e = expression
             // b = block
             // o = other array (eg, else, elseif)
-            const conditional = toJSValue(e, stmt.loc);
-            const block = prepareBlock(b);
+            const conditional = toJSValue(e, stmt.loc, ref_array);
+            const block = prepareBlock(b, ref_array, nb_call_array);
 
             const if_prod = [ calcAddress(stmt.loc), 'if', conditional, block ];
             o.forEach( (s) => {
-              if_prod.push(toJSValue(s.e, s.loc));
-              if_prod.push(prepareBlock(s.b));
+              if_prod.push(toJSValue(s.e, s.loc, ref_array));
+              if_prod.push(prepareBlock(s.b, ref_array, nb_call_array));
             });
             
             exec_block.stmts.push( if_prod );
@@ -511,7 +538,7 @@ function SceneComposer() {
     }
 
 
-    function prepareBaseStatement(base_stmt) {
+    function prepareBaseStatement(base_stmt, ref_array) {
 
       const ls = base_stmt.f;
       if (ls === 'const') {
@@ -524,7 +551,7 @@ function SceneComposer() {
         
         let e;
         if (expression.f === 'call') {
-          e = prepareFunction(expression);
+          e = prepareFunction(expression, ref_array);
         }
         else if (expression.t === 'INLINE') {
           // Convert to inline code string.
@@ -532,7 +559,7 @@ function SceneComposer() {
           e = [ 'inline', inline_source, createUniqueFunctionID() ];
         }
         else {
-          e = toJSValue(expression, src_loc);
+          e = toJSValue(expression, src_loc, ref_array);
         }
         
         return [ calcAddress(src_loc), 'const', identifier, e ];
@@ -544,7 +571,7 @@ function SceneComposer() {
         const identifier = base_stmt.l;
 
         return [ calcAddress(base_stmt.loc),
-                 'refcall', identifier, prepareFunction(base_stmt.r) ];
+                 'refcall', identifier, prepareFunction(base_stmt.r, ref_array) ];
         
       }
       else {
@@ -554,7 +581,7 @@ function SceneComposer() {
     
     }
 
-    function prepareDefine(define_stmt) {
+    function prepareDefine(define_stmt, ref_array, nb_call_array) {
       
       // The define identifier,
       const identifier = define_stmt.l;
@@ -562,7 +589,7 @@ function SceneComposer() {
       const block = define_stmt.r;
       
       // Prepare the block code,
-      const pb = prepareBlock(block);
+      const pb = prepareBlock(block, ref_array, nb_call_array);
       
       return { label:identifier, block:pb };
 
@@ -607,28 +634,63 @@ function SceneComposer() {
         
       });
 
+      // Create a package name from filename,
+      const pparts = filename.split('/');
+      let namespace_name = '';
+      for (const i = 0; i < pparts.length; ++i) {
+        if (i > 0) {
+          namespace_name += '#';
+        }
+        let nsp = pparts[i];
+        const dl = nsp.indexOf('.');
+        if (dl == 0) {
+          throw Error('Invalid file path for .vnjs package: ' + filename);
+        }
+        if (dl > 0) {
+          nsp = nsp.substring(0, dl);
+        }
+        namespace_name += nsp;
+      }
+
+      const ref_array = [];
+      const nb_call_array = [];
+
       const out = {
+        namespace:namespace_name,
         imports:[],
         base_stmts:[],
-        defines:{}
+        defines:{},
+        ref_array,
+        nb_call_array
       };
       
       // Process the base statement blocks,
       statements.forEach( (base_stmt) => {
-        const prepared_stmt = prepareBaseStatement(base_stmt);
+        const prepared_stmt = prepareBaseStatement(base_stmt, ref_array);
         out.base_stmts.push( prepared_stmt );
       });
       
       // Process the define blocks,
       defines.forEach( (define_stmt) => {
-        const prepared_define = prepareDefine(define_stmt);
+        const prepared_define = prepareDefine(define_stmt, ref_array, nb_call_array);
         out.defines[prepared_define.label] = prepared_define.block;
       });
 
       imports.forEach( (import_stmt) => {
         const istmt_loc = import_stmt.loc;
-        out.imports.push( [ calcAddress(istmt_loc),
-                            toJSValue(import_stmt.l, istmt_loc)[1] ]);
+
+        // Assert,
+        if (import_stmt.r.t !== 'STRING') {
+          throw Error('Assert failed: Expecting a STRING tok');
+        }
+
+        const to_import = import_stmt.l;
+        // NOTE: This is a bit of a nasty 'eval'. I hope there's no security issues
+        //   by doing this. However, if there are then it'll also be a security
+        //   issue with the usual function execution system.
+        const import_from = eval.call(null, import_stmt.r.v);
+        
+        out.imports.push( [ calcAddress(istmt_loc), to_import, import_from ] );
       });
 
       return out;
@@ -667,8 +729,8 @@ function SceneComposer() {
     // Returns an object that references the prepared code tree, the source tokens,
     // and a function that calculates the line and column given an offset value.
     const out = {
-      hash:hashFnv32a(code_string, false),
-      tree:tree,
+      hash: hashFnv32a(code_string, false),
+      tree: tree,
       calcLineColumn: function(offset) {
         return calculateScriptPosition(code_string, offset);
       }
@@ -701,12 +763,50 @@ function SceneComposer() {
     // Calls closure for every variable assigned,
     function forEachReference(closure) {
       for (let filename in exported_vars) {
-        const { depends, exports, assign_order, varops } = exported_vars[filename];
+        const { assign_order, varops } = exported_vars[filename];
         assign_order.forEach( (local_var) => {
           const varop = varops[local_var];
-          closure(filename, local_var, varop, assign_order);
+          closure(filename, local_var, varop);
         });
       }
+    }
+
+    // Attempts to qualify the variable reference,
+    function qualifyIdentifier(filename, v) {
+      const { namespace, depends } = exported_vars[filename];
+
+      // Qualify the input variable. If the input variable doesn't qualify
+      // against the local namespace then tries to qualify it against the
+      // dependants.
+      const in_v = v;
+      // If it's not already qualified?
+      if (v.indexOf('#') < 0) {
+        // Does it quality locally?
+        let tv = namespace + '#' + v;
+        if (globals[tv] === void 0) {
+          tv = v;
+          // No, so try and resolve it against the imports,
+          depends.forEach( (d) => {
+            const import_var = d[1];
+            const import_fname = d[2];
+            // Catch all,
+            if (import_var === '*' || import_var === v) {
+              const qual_v = exported_vars[import_fname].namespace + '#' + v;
+              if (qual_v in globals) {
+                if (tv === v) {
+                  tv = qual_v;
+                }
+                else {
+                  errors.push( 'Ambiguous reference \'' + v + '\'. Resolves to ' + qual_v + ' and ' + tv + '. ' + sourceLoc(filename, src_pos) );
+                }
+              }
+            }
+          });
+          
+        }
+        v = tv;
+      }
+      return v;
     }
 
     // Checks there are no duplicated global variables.
@@ -721,7 +821,7 @@ function SceneComposer() {
       // Build set of all global variables,
       
       for (let filename in exported_vars) {
-        const { depends, exports, assign_order, varops } = exported_vars[filename];
+        const { exports, varops } = exported_vars[filename];
 
         // Add all exports to global set,
         exports.forEach( (e) => {
@@ -737,9 +837,16 @@ function SceneComposer() {
       }
 
       // Closure called on every reference,
-      forEachReference( (filename, v, varop, local_set) => {
+      forEachReference( (filename, v, varop) => {
         const src_pos = varop[0];
         const vop = varop[1];
+        
+        // Attempts to qualify the variable reference,
+        function addDependent(var_refs, v, src_pos) {
+          const qualified_v = qualifyIdentifier(filename, v);
+          var_refs.push( [ qualified_v, src_pos, v ] );
+          return qualified_v;
+        }
 
         function addCallRefs(callop, src_pos, var_refs) {
           if (callop[0] !== 'call') throw Error("Assert failed: " + callop[0]);
@@ -749,9 +856,10 @@ function SceneComposer() {
           for (let ak in arg_map) {
             const argv = arg_map[ak];
             if (argv[0] === 'function') {
-              argv[2].forEach( (v) => {
-                var_refs.push( [v, src_pos] );
-              });
+              const varr = argv[2];
+              for (const nn = 0; nn < varr.length; ++nn) {
+                varr[nn] = addDependent(var_refs, varr[nn], src_pos);
+              }
             }
           }
         }
@@ -763,21 +871,22 @@ function SceneComposer() {
             syntaxError("Context call not allowed ", filename, nsrc_pos);
           }
         }
-        
+
         const var_refs = [];
         const ttype = vop[0];
         if (ttype === 'function') {
           // Syntax error if there are ref calls on this constant,
           checkNoRefCalls();
+
           // The list of variables this function references,
-          vop[2].forEach( (v) => {
-            var_refs.push( [v, src_pos] );
-          });
+          const varr = vop[2];
+          for (const nn = 0; nn < varr.length; ++nn) {
+            varr[nn] = addDependent(var_refs, varr[nn], src_pos);
+          }
         }
         else if (ttype === 'call') {
-          const call_id = vop[1];
           // Add the call id as a dependence,
-          var_refs.push( [call_id, src_pos] );
+          vop[1] = addDependent(var_refs, vop[1], src_pos);
           // Handle ref calls,
           addCallRefs(vop, src_pos, var_refs);
           for (let i = 2; i < varop.length; ++i) {
@@ -802,7 +911,7 @@ function SceneComposer() {
         
         // Build the dependency map,
         var_dependencies[v] = var_refs;
-        
+
       });
 
       function checkNotCircular(var_filename, src_pos, v, var_deps, stack, var_pruner) {
@@ -810,6 +919,7 @@ function SceneComposer() {
         if (var_pruner[v] === -1) {
           return;
         }
+        
         const globv = globals[v];
         if (globv === void 0) {
           // Variable not found,
@@ -877,6 +987,8 @@ function SceneComposer() {
       const thisvnjs_exports = [];
       const thisvnjs_var_assign_order = [];
 
+      const thisvnjs_namespace = tree.namespace;
+
       // Resolve the exports for this file,
       // The base statements,
       const base_stmts = tree.base_stmts;
@@ -886,7 +998,7 @@ function SceneComposer() {
         const type = stmt[1];
 
         if (type === 'const') {
-          const ident = stmt[2];
+          const ident = thisvnjs_namespace + '#' + stmt[2];
           const rhs = stmt[3];  // Either 'call', 'function' or 'value'
 
           if (thisvnjs_varnames[ident] === void 0) {
@@ -903,8 +1015,8 @@ function SceneComposer() {
           }
         }
         else if (type === 'refcall') {
-          // Refcalls can only reference identifiers that are defined in the local scope,
-          const ident = stmt[2];
+          // Mutator call,
+          const ident = thisvnjs_namespace + '#' + stmt[2];
           const rhs = stmt[3];  // Always a 'call'
 
           const varop = thisvnjs_varnames[ident];
@@ -931,14 +1043,15 @@ function SceneComposer() {
         global_defineset[define] = [ filename, def_stmts ];
       }
 
-      exported_vars[filename] = { depends: imports,
+      exported_vars[filename] = { namespace: thisvnjs_namespace,
+                                  depends: imports,
                                   exports: thisvnjs_exports,
                                   assign_order : thisvnjs_var_assign_order,
                                   varops : thisvnjs_varnames };
 
       for (let i = 0; i < imports.length; ++i) {
         // Resolve all the exports for the files we import first,
-        resolveExports(imports[i][1]);
+        resolveExports(imports[i][2]);
       }
 
       // Pop from the import stack,
@@ -952,6 +1065,42 @@ function SceneComposer() {
     });
     if (errors.length === 0) {
       checkReferences();
+      
+      // Qualify,
+      if (errors.length === 0) {
+
+        for (const fn in codebase) {
+          // Qualify all references,
+          const ref_array = codebase[fn].tree.ref_array;
+          for (const i = 0; i < ref_array.length; ++i) {
+            const vop = ref_array[i];
+            const sourceGenerator = vop[1];
+            const stats = { ids:[] };
+            // Compile it and overwrite the code,
+            vop[1] = sourceGenerator( (v) => {
+              return qualifyIdentifier(fn, v);
+            }, stats);
+            vop[2] = stats.ids;
+          }
+          // Qualify all calls,
+          const nb_call_array = codebase[fn].tree.nb_call_array;
+          for (const i = 0; i < nb_call_array.length; ++i) {
+            const call_op = nb_call_array[i];
+            const src_pos = call_op[0];
+            const call_identifier = call_op[2][1];
+            const qualified_call_id = qualifyIdentifier(fn, call_identifier);
+//            console.log("Qualified ", call_identifier, " to ", qualified_call_id);
+            // Check this global exists,
+            if (!qualified_call_id in globals) {
+              syntaxError('Function not found: ' + call_identifier, fn, src_pos);
+            }
+            call_op[2][1] = qualified_call_id;
+          }
+          
+        }
+        
+      }
+      
     }
 
     if (errors.length > 0) {
@@ -964,26 +1113,30 @@ function SceneComposer() {
       const global_varset = {};
       
       // Clean up codebase,
-      for (let fn in codebase) {
+      for (const fn in codebase) {
         delete codebase[fn].tree.imports;
         delete codebase[fn].tree.base_stmts;
         delete codebase[fn].tree.defines;
+        delete codebase[fn].tree.ref_array;
+        delete codebase[fn].tree.nb_call_array;
         codebase[fn].tree.depends = exported_vars[fn].depends;
         codebase[fn].tree.exports = exported_vars[fn].exports;
 
         const m = exported_vars[fn].varops;
-        for (let v in m) {
+        for (const v in m) {
           global_varset[v] = m[v];
         }
       }
 
-      return {
+      const out = {
         assign_location: globals,
         var_dependencies : var_dependencies,
         global_varset : global_varset,
         global_defineset : global_defineset,
         codebase : codebase
       };
+      
+      return out;
     }
 
   }
@@ -1047,7 +1200,7 @@ function SceneComposer() {
             const nimports = code.tree.imports;
             const to_load = [];
             nimports.forEach( (nimport) => {
-              const fn = nimport[1];
+              const fn = nimport[2];
               // If this import hasn't been loaded yet,
               if (loading[fn] === void 0) {
                 to_load.push(fn);

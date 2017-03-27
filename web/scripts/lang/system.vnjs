@@ -4,8 +4,10 @@
 // ----- System object constructors -----
 
 // LinearGradient implementation
-const vnjs.object.LinearGradient = {%
+const LinearGradient = {%
   function (args, context) {
+    context.assertConstructor();
+
     var vn_screen = context.getVNScreen();
     var out = {
       args,
@@ -26,8 +28,10 @@ const vnjs.object.LinearGradient = {%
 
 
 // RadialGradient implementation
-const vnjs.object.RadialGradient = {%
+const RadialGradient = {%
   function (args, context) {
+    context.assertConstructor();
+
     var vn_screen = context.getVNScreen();
     var out = {
       args,
@@ -49,6 +53,7 @@ const vnjs.object.RadialGradient = {%
 
 const Group = {%
   function (args, context) {
+    context.assertConstructor();
     return context.system.Group(args, context);
   }
 %}
@@ -56,7 +61,7 @@ const Group = {%
 
 
 // A TextTrail object,
-const vnjs.object.TextTrail = {%
+const TextTrail = {%
 
   // Anon-self invoking function to allow for constants,
   (function() {
@@ -70,6 +75,8 @@ const vnjs.object.TextTrail = {%
     };
 
     return function (args, context) {
+      context.assertConstructor();
+
       var mergeConfig = context.lib.utils.mergeConfig;
       var vn_screen = context.getVNScreen();
       
@@ -99,8 +106,9 @@ const vnjs.object.TextTrail = {%
 
 
 // Rectangle CanvasElement,
-const vnjs.object.Rectangle = {%
+const Rectangle = {%
   function (args, context) {
+    context.assertConstructor();
 
     // Create the canvas element object,
     var rectangle_ce = context.createDrawCanvasElement( args );
@@ -148,8 +156,9 @@ const vnjs.object.Rectangle = {%
 
 // A CanvasElement object that draws a single line of text centered on the canvas element's
 // location.
-const vnjs.object.TextArt = {%
+const TextArt = {%
   function (args, context) {
+    context.assertConstructor();
     
     // Defaults,
     var config = {
@@ -204,8 +213,10 @@ const vnjs.object.TextArt = {%
 // ----- System call library -----
 
 
-const vnjs.fun.debug = {%
+const debug = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
+
     if ('default' in args) {
       console.log(args.default);
     }
@@ -223,8 +234,10 @@ const vnjs.fun.debug = {%
 
 
 
-const vnjs.fun.preloadAssets = {%
+const preloadAssets = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
+
     var to_preload = args.default;
     console.error("PENDING: preloadAssets for: ", to_preload);
     // Complete,
@@ -234,8 +247,10 @@ const vnjs.fun.preloadAssets = {%
 
 
 
-const vnjs.fun.preloadFont = {%
+const preloadFont = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
+
     var font_family = args.default;
     context.getVNScreen().preloadFont(font_family, function() {
       // Complete,
@@ -246,8 +261,9 @@ const vnjs.fun.preloadFont = {%
 
 
 
-const vnjs.fun.setDefaultTextTrail = {%
+const setDefaultTextTrail = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
     
     var text_trail = args.default;
     var enter = args.enter;
@@ -263,8 +279,9 @@ const vnjs.fun.setDefaultTextTrail = {%
 
 
 
-const vnjs.fun.setTextTrail = {%
+const setTextTrail = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
     
     var text_trail = args.default;
     var tt_name = args.name;
@@ -280,8 +297,9 @@ const vnjs.fun.setTextTrail = {%
 
 
 
-const vnjs.fun.setStyle = {%
+const setStyle = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
     
     var element = args.default;
     context.setElementStyle(element, args, { 'default':-1 } );
@@ -295,8 +313,9 @@ const vnjs.fun.setStyle = {%
 
 
 
-const vnjs.fun.setTargetStyle = {%
+const setTargetStyle = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
 
     var element = args.default;
     var target_style = context.convertToRawStyles(args, { 'default':-1 } );
@@ -310,8 +329,9 @@ const vnjs.fun.setTargetStyle = {%
 
 
 
-const vnjs.fun.animate = {%
+const animate = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
     
     var element = args.default;
     var time = args.time;
@@ -326,8 +346,9 @@ const vnjs.fun.animate = {%
 
 
 
-const vnjs.fun.announce = {%
+const announce = {%
   function(args, context, resolve, reject) {
+    context.assertFunction();
     
     var vn_screen = context.getVNScreen();
     
@@ -391,26 +412,3 @@ const vnjs.fun.announce = {%
   }
 %}
 
-
-
-
-
-// Aliases,
-
-// Objects,
-const LinearGradient = vnjs.object.LinearGradient;
-const RadialGradient = vnjs.object.RadialGradient;
-const TextTrail      = vnjs.object.TextTrail;
-const Rectangle      = vnjs.object.Rectangle;
-const TextArt        = vnjs.object.TextArt;
-
-// System calls,
-const debug          = vnjs.fun.debug;
-const preloadAssets  = vnjs.fun.preloadAssets;
-const preloadFont    = vnjs.fun.preloadFont;
-const setDefaultTextTrail = vnjs.fun.setDefaultTextTrail;
-const setTextTrail   = vnjs.fun.setTextTrail;
-const setStyle       = vnjs.fun.setStyle;
-const setTargetStyle = vnjs.fun.setTargetStyle;
-const animate        = vnjs.fun.animate;
-const announce       = vnjs.fun.announce;

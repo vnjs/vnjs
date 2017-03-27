@@ -24,7 +24,8 @@
     'or':-1,
     'goto':-1,
     'preserve':-1,
-    'evaluate':-1
+    'evaluate':-1,
+    'from':-1
   };
 %}
 
@@ -118,6 +119,7 @@ general_expression -> _ expression _ {% nth(1) %}
   var IF =     isWord('if');
   var ELSE =   isWord('else');
   var IMPORT = isWord('import');
+  var FROM =   isWord('from');
   var GOTO =   isWord('goto');
   var DEFINE = isWord('define');
   var AND =    isWord('and');
@@ -268,13 +270,17 @@ expression -> binaryOp {% id %}
       return reject;
     }
     return str;
-//    return { loc:loc, t:'LOCAL', v:str };
   };
 %}
 
 local_ident -> identifier           {% toLocalIdent %}
 
 ns_local_ident -> namespaced_ident  {% toLocalIdent %}
+
+# Import ident is either '*' or a string identifier such as 'TextTrail'
+import_ident -> %MULT           {% function(d) { return '*'; } %}
+              | identifier      {% toLocalIdent %}
+
 
 # ---------------
 
@@ -403,7 +409,7 @@ mutatorFunctionCall -> local_ident _ %OPENP _ %CLOSEP {%
 %}
 
 
-baseFunctionCall -> ns_local_ident _ %PERIOD _ mutatorFunctionCall
+baseMutatorCall -> ns_local_ident _ %PERIOD _ mutatorFunctionCall
       {% function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } } %}
 
 
@@ -457,9 +463,9 @@ langstatement -> reservedOp _ ns_local_ident _ %SEMICOLON {%
 %}
 
 
-importstatement -> %IMPORT __ stringval _ %SEMICOLON {%
+importstatement -> %IMPORT _ import_ident _ %FROM _ stringval _ %SEMICOLON {%
   function(d, loc) {
-    return { loc:loc, f:'import', l:d[2] }
+    return { loc:loc, f:'import', l:d[2], r:d[6] }
   }
 %}
 
@@ -482,15 +488,20 @@ nestedStatement -> assignment {% nth(0) %}
                  | ifstatement {% nth(0) %}
                  | langstatement {% nth(0) %}
 
-
 baseStatement -> conststatement {% nth(0) %}
-               | baseFunctionCall _ %SEMICOLON {% nth(0) %}
+               | baseMutatorCall _ %SEMICOLON {% nth(0) %}
                | definestatement {% nth(0) %}
-               | importstatement {% nth(0) %}
 
 nestedStatements -> ( _ nestedStatement ):+ {% toList(0, 1) %}
 
-baseStatements -> ( _ baseStatement ):* {% toList(0, 1) %}
+# Base statements always have imports first,
+baseStatements -> ( _ importstatement ):* ( _ baseStatement ):* {%
+  function(d) {
+    var import_list = toList(0, 1)(d);
+    var rest_list = toList(1, 1)(d);
+    return import_list.concat(rest_list);
+  }
+%}
 
 
 # -----------
