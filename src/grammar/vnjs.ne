@@ -469,13 +469,13 @@ importstatement -> %IMPORT _ import_ident _ %FROM _ stringval _ %SEMICOLON {%
   }
 %}
 
-conststatement -> %CONST __ ns_local_ident _ %ASSIGN _ constRightSide {%
+conststatement -> %CONST _ local_ident _ %ASSIGN _ constRightSide {%
   function(d, loc) {
     return { loc:loc, f:'const', l:d[2], r:d[6] }
   }
 %}
 
-definestatement -> %DEFINE __ ns_local_ident _ block {%
+definestatement -> %DEFINE _ ns_local_ident _ block {%
   function(d, loc) {
     return { loc:loc, f:'define', l:d[2], r:d[4] }
   }

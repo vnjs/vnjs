@@ -410,12 +410,12 @@ var grammar = {
           return { loc:loc, f:'import', l:d[2], r:d[6] }
         }
         },
-    {"name": "conststatement", "symbols": [CONST, "__", "ns_local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
+    {"name": "conststatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'const', l:d[2], r:d[6] }
         }
         },
-    {"name": "definestatement", "symbols": [DEFINE, "__", "ns_local_ident", "_", "block"], "postprocess": 
+    {"name": "definestatement", "symbols": [DEFINE, "_", "ns_local_ident", "_", "block"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'define', l:d[2], r:d[4] }
         }
