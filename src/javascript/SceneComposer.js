@@ -327,7 +327,7 @@ function SceneComposer() {
     }
     
     // Compiles a function expression,
-    function compileFunctionExpression(pt, parent_loc, stats, ref_qualifier, no_source_map) {
+    function compileFunctionExpression(pt, src_loc, stats, ref_qualifier, no_source_map) {
 
       // Create the JavaScript that executes the operation,
       let evaluation_string = expr(pt, stats, ref_qualifier);
@@ -337,12 +337,11 @@ function SceneComposer() {
 
       // Otherwise we have to evaluate at runtime.
       if ( !no_source_map && INCLUDE_SOURCEMAP_FOR_FUNCTIONS ) {
-        const gen_loc = (typeof pt === 'string') ? parent_loc : pt.loc;
-        if (gen_loc !== void 0) {
+        if (src_loc !== void 0) {
           // Embed a url encoded source map for this function,
           // This helps us with debugging. If this function generates an exception
           // then the stacktrace will reference the true source of the error.
-          const pos = calculateScriptPosition(code_source, calcAddress(gen_loc));
+          const pos = calculateScriptPosition(code_source, calcAddress(src_loc));
           const generator = new sourceMap.SourceMapGenerator({});
           generator.addMapping({
             source: filename,
@@ -371,10 +370,12 @@ function SceneComposer() {
       const no_qualifier = (p) => { return p };
       const stats = { ids:[] };
 
+      const src_loc = (typeof pt === 'string') ? parent_loc : pt.loc;
+
       // Compile the expression into source code so we can work out dependencies
       // and possibly execute it if we know it produces a static result,
       const gen_function_source =
-              compileFunctionExpression(pt, parent_loc, stats, no_qualifier, true);
+              compileFunctionExpression(pt, src_loc, stats, no_qualifier, true);
       
       // If there are no idents used in the expression then it's safe to execute it
       // here to produce a constant,
@@ -390,9 +391,9 @@ function SceneComposer() {
           if (stats === void 0) {
             stats = { ids:[] };
           }
-          return compileFunctionExpression(pt, parent_loc, stats, ref_qualifier, false);
+          return compileFunctionExpression(pt, src_loc, stats, ref_qualifier, false);
         };
-        const fun_a = [ 'function', sourceGenerator, stats.ids, createUniqueFunctionID() ];
+        const fun_a = [ 'function', [ calcAddress(src_loc), sourceGenerator ], stats.ids, createUniqueFunctionID() ];
         ref_array.push(fun_a);
         return fun_a;
       }
@@ -772,7 +773,7 @@ function SceneComposer() {
     }
 
     // Attempts to qualify the variable reference,
-    function qualifyIdentifier(filename, v) {
+    function qualifyIdentifier(filename, v, src_pos) {
       const { namespace, depends } = exported_vars[filename];
 
       // Qualify the input variable. If the input variable doesn't qualify
@@ -793,7 +794,7 @@ function SceneComposer() {
             if (import_var === '*' || import_var === v) {
               const qual_v = exported_vars[import_fname].namespace + '#' + v;
               if (qual_v in globals) {
-                if (tv === v) {
+                if (tv === v || tv === qual_v) {
                   tv = qual_v;
                 }
                 else {
@@ -804,6 +805,7 @@ function SceneComposer() {
           });
           
         }
+
         v = tv;
       }
       return v;
@@ -843,7 +845,7 @@ function SceneComposer() {
         
         // Attempts to qualify the variable reference,
         function addDependent(var_refs, v, src_pos) {
-          const qualified_v = qualifyIdentifier(filename, v);
+          const qualified_v = qualifyIdentifier(filename, v, src_pos);
           var_refs.push( [ qualified_v, src_pos, v ] );
           return qualified_v;
         }
@@ -1074,11 +1076,12 @@ function SceneComposer() {
           const ref_array = codebase[fn].tree.ref_array;
           for (const i = 0; i < ref_array.length; ++i) {
             const vop = ref_array[i];
-            const sourceGenerator = vop[1];
+            const src_loc = vop[1][0];
+            const sourceGenerator = vop[1][1];
             const stats = { ids:[] };
             // Compile it and overwrite the code,
             vop[1] = sourceGenerator( (v) => {
-              return qualifyIdentifier(fn, v);
+              return qualifyIdentifier(fn, v, src_loc);
             }, stats);
             vop[2] = stats.ids;
           }
@@ -1088,7 +1091,7 @@ function SceneComposer() {
             const call_op = nb_call_array[i];
             const src_pos = call_op[0];
             const call_identifier = call_op[2][1];
-            const qualified_call_id = qualifyIdentifier(fn, call_identifier);
+            const qualified_call_id = qualifyIdentifier(fn, call_identifier, src_pos);
 //            console.log("Qualified ", call_identifier, " to ", qualified_call_id);
             // Check this global exists,
             if (!qualified_call_id in globals) {
@@ -1202,7 +1205,7 @@ function SceneComposer() {
             nimports.forEach( (nimport) => {
               const fn = nimport[2];
               // If this import hasn't been loaded yet,
-              if (loading[fn] === void 0) {
+              if (loading[fn] === void 0 && to_load.indexOf(fn) < 0) {
                 to_load.push(fn);
               }
             });

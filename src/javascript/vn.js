@@ -797,7 +797,7 @@ function gameLaunch() {
   //   for the server and dispatch on the messages as appropriate.
 
   // Load and parse the scene file,
-  const file_set = [ 'lang/system.vnjs', 'start.vnjs' ];
+  const file_set = [ 'start.vnjs' ];
   loadAndParseScene(file_set, function(parsed_vn) {
     
     const front_end = FrontEnd();
