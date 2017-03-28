@@ -131,6 +131,17 @@ function VNScreen(canvas_window_element, config) {
     interact_callback = lcb;
   };
 
+  // API function; Calls the given 'callback' function after the given timeout
+  //   (in seconds) has passed.
+  function setWaitCallback(seconds_wait, callback) {
+    const lcb = () => {
+      // Any active interpolations are completed,
+      completeAllInterpolations();
+      callback();
+    };
+    setTimeout( lcb, (seconds_wait * 1000) );
+  }
+
   function resetTransform(ctx) {
     ctx.globalAlpha = 1.0;
     ctx.resetTransform();
@@ -562,6 +573,7 @@ function VNScreen(canvas_window_element, config) {
 
     setInteractCallback,
     setInteractOrWaitCallback,
+    setWaitCallback,
     getTimeFramestampNow,
 
     get2DContext,

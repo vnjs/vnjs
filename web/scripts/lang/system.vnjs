@@ -361,12 +361,8 @@ const announce = {%
     // After, should we wait for interaction? (default: wait on interact)
     var until = args.until;
     var continueAfter = args.continueAfter;
-    if (until === void 0) {
-      until = 'interact';
-    }
-    else if (util === 'interactOrWait') {
-      until = 'interact';
-    }
+    // Should we break on interact?
+    var breakOnInteract = args.breakOnInteract;
 
     var text_trail = context.getTextTrail(trail_target);
     if (!text_trail.displayed) {
@@ -387,15 +383,23 @@ const announce = {%
     // Start the animation interpolation,
     context.addInterpolations(text_trail.el, dstyle, time_to_complete / 1000, 'no-ease');
 
-    // Do we wait on interact?
-    if (until === 'interact') {
-      var finish_cb = function() {
-        // Clear the animation before we callback after interact,
-        text_trail.el.clearAnimation();
-        // Complete,
-        resolve();
-      };
-
+    var finish_cb = function() {
+      // Clear the animation before we callback after interact,
+      text_trail.el.clearAnimation();
+      // Complete,
+      resolve();
+    };
+    // Do we not allow interact to break the wait?
+    if (breakOnInteract === false) {
+      // So just wait,
+      if (continueAfter === void 0) {
+        finish_cb();
+      }
+      else {
+        vn_screen.setWaitCallback(continueAfter, finish_cb);
+      }
+    }
+    else {
       if (continueAfter === void 0) {
         vn_screen.setInteractCallback(finish_cb);
       }
@@ -403,12 +407,46 @@ const announce = {%
         vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
       }
     }
-    // No, so continue to next instruction,
-    else {
+    
+  }
+%}
+
+
+
+const wait = {%
+  function(args, context, resolve, reject) {
+    context.assertFunction();
+    
+    var vn_screen = context.getVNScreen();
+
+    // The number of seconds to wait,
+    var continueAfter = args.continueAfter;
+    // Should we break on interact?
+    var breakOnInteract = args.breakOnInteract;
+
+    var finish_cb = function() {
       // Complete,
       resolve();
+    };
+    // Do we not allow interact to break the wait?
+    if (breakOnInteract === false) {
+      // So just wait,
+      if (continueAfter === void 0) {
+        finish_cb();
+      }
+      else {
+        vn_screen.setWaitCallback(continueAfter, finish_cb);
+      }
     }
-    
+    else {
+      if (continueAfter === void 0) {
+        vn_screen.setInteractCallback(finish_cb);
+      }
+      else {
+        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+      }
+    }
+
   }
 %}
 
