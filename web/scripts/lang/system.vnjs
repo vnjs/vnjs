@@ -1,11 +1,28 @@
 
 // Defines system constants Canvas Element constructors,
 
+//install './system.js';
+
+install {%
+  function (installer) {
+    // Sets the gradient mutator,
+    function gradientMutator(fill_style) {
+      return {
+        addColorStop: function(args) {
+          fill_style.addColorStop(args.stop, args.color);
+        }
+      };
+    }
+    
+    installer.gradientMutator = gradientMutator;
+  }
+%}
+
 // ----- System object constructors -----
 
 // LinearGradient implementation
 const LinearGradient = {%
-  function (args, context) {
+  function LinearGradient(args, context) {
     context.assertConstructor();
 
     var vn_screen = context.getVNScreen();
@@ -15,11 +32,7 @@ const LinearGradient = {%
     var fill_style = vn_screen.get2DContext().createLinearGradient(
                           args.x1, args.y1, args.x2, args.y2);
     // Define the mutator,
-    out.mutators = {
-      addColorStop: function(args) {
-        fill_style.addColorStop(args.stop, args.color);
-      }
-    };
+    out.mutators = context.lib.lang.system.gradientMutator(fill_style);
     out.val = fill_style;
     return out;
   }
@@ -29,7 +42,7 @@ const LinearGradient = {%
 
 // RadialGradient implementation
 const RadialGradient = {%
-  function (args, context) {
+  function RadialGradient(args, context) {
     context.assertConstructor();
 
     var vn_screen = context.getVNScreen();
@@ -39,11 +52,7 @@ const RadialGradient = {%
     var fill_style = vn_screen.get2DContext().createRadialGradient(
                           args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
     // Define the mutator,
-    out.mutators = {
-      addColorStop: function(args) {
-        fill_style.addColorStop(args.stop, args.color);
-      }
-    };
+    out.mutators = context.lib.lang.system.gradientMutator(fill_style);
     out.val = fill_style;
     return out;
   }
@@ -52,7 +61,7 @@ const RadialGradient = {%
 
 
 const Group = {%
-  function (args, context) {
+  function Group(args, context) {
     context.assertConstructor();
     return context.system.Group(args, context);
   }
@@ -74,7 +83,7 @@ const TextTrail = {%
       line_height: 30
     };
 
-    return function (args, context) {
+    return function TextTrail(args, context) {
       context.assertConstructor();
 
       var mergeConfig = context.lib.utils.mergeConfig;
@@ -107,7 +116,7 @@ const TextTrail = {%
 
 // Rectangle CanvasElement,
 const Rectangle = {%
-  function (args, context) {
+  function Rectangle(args, context) {
     context.assertConstructor();
 
     // Create the canvas element object,
@@ -157,7 +166,7 @@ const Rectangle = {%
 // A CanvasElement object that draws a single line of text centered on the canvas element's
 // location.
 const TextArt = {%
-  function (args, context) {
+  function TextArt(args, context) {
     context.assertConstructor();
     
     // Defaults,
@@ -214,7 +223,7 @@ const TextArt = {%
 
 
 const debug = {%
-  function(args, context, resolve, reject) {
+  function debug(args, context, resolve, reject) {
     context.assertFunction();
 
     if ('default' in args) {
@@ -235,7 +244,7 @@ const debug = {%
 
 
 const preloadAssets = {%
-  function(args, context, resolve, reject) {
+  function preloadAssets(args, context, resolve, reject) {
     context.assertFunction();
 
     var to_preload = args.default;
@@ -248,7 +257,7 @@ const preloadAssets = {%
 
 
 const preloadFont = {%
-  function(args, context, resolve, reject) {
+  function preloadFont(args, context, resolve, reject) {
     context.assertFunction();
 
     var font_family = args.default;
@@ -262,7 +271,7 @@ const preloadFont = {%
 
 
 const setDefaultTextTrail = {%
-  function(args, context, resolve, reject) {
+  function setDefaultTextTrail(args, context, resolve, reject) {
     context.assertFunction();
     
     var text_trail = args.default;
@@ -280,7 +289,7 @@ const setDefaultTextTrail = {%
 
 
 const setTextTrail = {%
-  function(args, context, resolve, reject) {
+  function setTextTrail(args, context, resolve, reject) {
     context.assertFunction();
     
     var text_trail = args.default;
@@ -298,7 +307,7 @@ const setTextTrail = {%
 
 
 const setStyle = {%
-  function(args, context, resolve, reject) {
+  function setStyle(args, context, resolve, reject) {
     context.assertFunction();
     
     var element = args.default;
@@ -314,7 +323,7 @@ const setStyle = {%
 
 
 const setTargetStyle = {%
-  function(args, context, resolve, reject) {
+  function setTargetStyle(args, context, resolve, reject) {
     context.assertFunction();
 
     var element = args.default;
@@ -330,7 +339,7 @@ const setTargetStyle = {%
 
 
 const animate = {%
-  function(args, context, resolve, reject) {
+  function animate(args, context, resolve, reject) {
     context.assertFunction();
     
     var element = args.default;
@@ -347,7 +356,7 @@ const animate = {%
 
 
 const announce = {%
-  function(args, context, resolve, reject) {
+  function announce(args, context, resolve, reject) {
     context.assertFunction();
     
     var vn_screen = context.getVNScreen();
@@ -414,7 +423,7 @@ const announce = {%
 
 
 const wait = {%
-  function(args, context, resolve, reject) {
+  function wait(args, context, resolve, reject) {
     context.assertFunction();
     
     var vn_screen = context.getVNScreen();

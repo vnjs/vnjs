@@ -25,7 +25,8 @@
     'goto':-1,
     'preserve':-1,
     'evaluate':-1,
-    'from':-1
+    'from':-1,
+    'install':-1
   };
 %}
 
@@ -128,6 +129,7 @@ general_expression -> _ expression _ {% nth(1) %}
   var VAR =      isWord('var');
   var PRESERVE = isWord('preserve');
   var EVALUATE = isWord('evaluate');
+  var INSTALL  = isWord('install');
 
   var EXPONENT = {
     test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
@@ -422,6 +424,9 @@ constRightSide -> expression _ %SEMICOLON       {% nth(0) %}
                 | functionCall _ %SEMICOLON     {% nth(0) %}
                 | inlineCode ( _ %SEMICOLON ):? {% nth(0) %}
 
+installtarget -> stringval _ %SEMICOLON        {% nth(0) %}
+               | inlineCode ( _ %SEMICOLON ):? {% nth(0) %}
+
 
 assignment -> ns_local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
   function(d, loc) {
@@ -469,6 +474,12 @@ importstatement -> %IMPORT _ import_ident _ %FROM _ stringval _ %SEMICOLON {%
   }
 %}
 
+installstatement -> %INSTALL _ installtarget {%
+  function(d, loc) {
+    return { loc:loc, f:'install', l:d[2] }
+  }
+%}
+
 conststatement -> %CONST _ local_ident _ %ASSIGN _ constRightSide {%
   function(d, loc) {
     return { loc:loc, f:'const', l:d[2], r:d[6] }
@@ -488,7 +499,8 @@ nestedStatement -> assignment {% nth(0) %}
                  | ifstatement {% nth(0) %}
                  | langstatement {% nth(0) %}
 
-baseStatement -> conststatement {% nth(0) %}
+baseStatement -> installstatement {% nth(0) %}
+               | conststatement {% nth(0) %}
                | baseMutatorCall _ %SEMICOLON {% nth(0) %}
                | definestatement {% nth(0) %}
 

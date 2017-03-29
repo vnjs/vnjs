@@ -86,7 +86,7 @@ function Context(frontend) {
         const has_constants = loadConstants(dependents, no_global_vars);
         if (has_constants) {
           const function_id = expr[3];
-          loadFunction(function_id, expr[1]);
+          loadFunction('', function_id, expr[1]);
           argv[arg_ident] = { f: function_id };
         }
         else {
@@ -103,10 +103,28 @@ function Context(frontend) {
     return argv;
   }
 
+  function doLoadInstall(namespace, install) {
+    const function_id = install[2];
+    if (loadFunction(namespace, function_id, install[1])) {
+      // Send function execute instruction,
+      frontend.execInstall(function_id);
+    }
+  }
+
   function doLoadConstant(v) {
     // Is it already loaded?
     if (loaded_constants_cache[v] === void 0) {
       loaded_constants_cache[v] = -1;
+
+      // Make sure installs are loaded for this namespace,
+      const ld = v.lastIndexOf('#');
+      // The namespace of this variable
+      const constant_namespace = v.substring(0, ld);
+      // Are there installs for this namespace?
+      const installs = constants.installs_map[constant_namespace];
+      installs.forEach( (install) => {
+        doLoadInstall(constant_namespace, install);
+      });
 
       const { var_dependencies, global_varset, constants_source_map } = constants;
       // Recurse over the constant dependencies,
@@ -186,11 +204,13 @@ function Context(frontend) {
     return gc_count > 0;
   }
   
-  function loadFunction(function_id, function_source_code) {
+  function loadFunction(namespace, function_id, function_source_code) {
     if (loaded_functions_cache[function_id] === void 0) {
       loaded_functions_cache[function_id] = function_source_code;
-      frontend.loadFunction(function_id, function_source_code);
+      frontend.loadFunction(namespace, function_id, function_source_code);
+      return true;
     }
+    return false;
   }
   
   function setIDefine(idef) {

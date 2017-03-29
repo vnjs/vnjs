@@ -191,7 +191,9 @@ function FrontEnd() {
       return vob.v;
     }
     else {
-      const res = function_load_map[vob.f](property_resolver);
+      const loaded_fun = function_load_map[vob.f];
+      const compiled_fun = loaded_fun[1];
+      const res = compiled_fun(property_resolver);
       // Process the result. If an object is returned then handle specially,
       if (typeof res === 'object') {
         if (res.type === 'c') {
@@ -202,27 +204,7 @@ function FrontEnd() {
           return extrap_fun.call(null, constants_resolver);
         }
         else if (res.type === 'i') {
-          // The constants this inline function is permitted to access,
-          const constants_access = res.constants_access;
-          // The function to call,
-          const call_fun = res.func;
-          // If there's no access to constants allowed then just return the
-          // function,
-          if (constants_access.length === 0) {
-            return call_fun;
-          }
-          // Otherwise wrap the function,
-          else {
-            return function() {
-              // Look at arg '1' and if it's an instance of UContext then
-              // pass it the constants access object,
-              const arg1 = arguments[1];
-              if (arg1 !== void 0 && arg1 instanceof UContext) {
-                arg1._allowAccess(constants_access);
-              }
-              return call_fun.apply(null, arguments);
-            }
-          }
+          return res.func;
         }
         else {
           throw Error('Unknown result type: ' + res.type);
@@ -309,12 +291,26 @@ function FrontEnd() {
     }
     // Inline JavaScript code and mutators,
     else if (type === 'i') {
+
+      const namespace = ident.substring(0, ident.lastIndexOf('#'));
+
       const func_factory = eval.call(null, fdef[1]);
       const constants_access = {};
+
+      // Wrap the inline function,
+      const wrapped_func_fact = function() {
+        // Look at arg '1' and if it's an instance of UContext then
+        // pass it the constants access object,
+        const arg1 = arguments[1];
+        if (arg1 !== void 0 && arg1 instanceof UContext) {
+          arg1._allowAccess(namespace, constants_access);
+        }
+        return func_factory.apply(null, arguments);
+      }
+
       constant_ob =
           { type:     'i',
-            func:     func_factory,
-            constants_access,
+            func:     wrapped_func_fact,
             src_loc:  fdef[3]
           };
       for (let i = 1; i < def.length; ++i) {
@@ -580,6 +576,15 @@ function FrontEnd() {
     });
   }
 
+  function setGetOnlyProp(obj, key, get_func) {
+    Object.defineProperty(obj, key, {
+      enumerable: true,
+      configurable: false,
+      get: get_func,
+      set: function() { throw Error('Invalid object write') }
+    });
+  }
+
   // Instances of this class are passed to user functions when executed. The object
   // provides access to the context in general,
   function UContext() {
@@ -613,22 +618,16 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'getTextTrail', getTextTrail);
   setROProp(UContext.prototype, 'callUserCode', callUserCode);
 //  setROProp(UContext.prototype, '', );
-  
-  const context_lib = {
 
-    TextFormatter,
-    TextTrail,
-    Interpolation,
+  // Built in libraries,
+  const context_lib = {};
+  setROProp(context_lib, 'TextFormatter', TextFormatter);
+  setROProp(context_lib, 'TextTrail', TextTrail);
+  setROProp(context_lib, 'Interpolation', Interpolation);
+  setROProp(context_lib, 'graphics', Object.freeze( { roundedRect } ));
+  setROProp(context_lib, 'utils', Object.freeze( { mergeConfig } ));
 
-    graphics: Object.freeze({
-      roundedRect
-    }),
-    utils: Object.freeze({
-      mergeConfig
-    }),
-  };
-  
-  setROProp(UContext.prototype, 'lib', Object.freeze(context_lib));
+  setGetOnlyProp(UContext.prototype, 'lib', function() { return context_lib });
 
   // Freeze the 'UContext' class,
   Object.freeze(UContext);
@@ -645,9 +644,10 @@ function FrontEnd() {
     context._ucodetype = (resolve !== void 0) ? 'FUNCTION' : 'CONSTRUCTOR';
     let tc_valid_objects;
 
-    context._allowAccess = function(valid_objects) {
+    context._allowAccess = function(namespace, valid_objects) {
       if (tc_valid_objects === void 0) {
         tc_valid_objects = valid_objects;
+        this._namespace = namespace;
       }
       else {
         throw Error("Permission denied");
@@ -665,6 +665,31 @@ function FrontEnd() {
 
     return func.call(null, args, context, resolve, reject);
 
+  }
+  
+  // Executes an installer function, which changes the 'context_lib' object. Used
+  // to install new JavaScript functions.
+  function doExecuteInstaller(namespace, install_fun) {
+    // Make the installer object,
+    const installer = {};
+    // Call user installer code,
+    install_fun.call(null, installer);
+    // 'installer' now contains the functions we want to expose to other functions.
+    // Add it to the context libraries,
+    const ns_parts = namespace.split('#');
+    let bc = context_lib;
+    for (const i = 0; i < ns_parts.length; ++i) {
+      const nsp = ns_parts[i];
+      let nbc = bc[nsp];
+      if (nbc === void 0) {
+        nbc = {};
+        bc[nsp] = nbc;
+      }
+      bc = nbc;
+    }
+    for (const iname in installer) {
+      bc[iname] = installer[iname];
+    }
   }
   
   // ----- JavaScript API -----
@@ -739,9 +764,9 @@ function FrontEnd() {
     constant_var_defs[varname] = fcode;
   }
   
-  function loadFunction(function_id, function_source_code) {
+  function loadFunction(namespace, function_id, function_source_code) {
     const compiled_fun = eval.call(null, function_source_code);
-    function_load_map[function_id] = compiled_fun;
+    function_load_map[function_id] = [ namespace, compiled_fun ];
   }
 
   function execAssign(ident, val) {
@@ -765,6 +790,18 @@ function FrontEnd() {
 
   }
 
+  function execInstall(function_id) {
+    const loaded_fun = function_load_map[function_id];
+    if (loaded_fun !== void 0) {
+      const namespace = loaded_fun[0];
+      const compiled_fun = loaded_fun[1];
+      doExecuteInstaller(namespace, compiled_fun);
+    }
+    else {
+      // Oops,
+      throw Error('Compiled function id not found');
+    }
+  }
   
   function dumpDebug(output) {
     vn_screen.dumpDebug(output);
@@ -777,6 +814,7 @@ function FrontEnd() {
     loadFunction,
     execAssign,
     execCall,
+    execInstall,
     dumpDebug,
   };
 }

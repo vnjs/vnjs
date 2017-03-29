@@ -166,7 +166,7 @@ function Interpreter(parsed_vn) {
     const assigns = parsed_vn.assign_location;
     const codebase = parsed_vn.codebase;
     const constants_source_map = {};
-    for (let var_name in assigns) {
+    for (const var_name in assigns) {
       const asgn = assigns[var_name];
       const source_file = asgn[0];
       const src_pos = asgn[1];
@@ -183,7 +183,9 @@ function Interpreter(parsed_vn) {
 
     context.setConstantsInfo( { constants_source_map,
                                 global_varset: parsed_vn.global_varset,
-                                var_dependencies: parsed_vn.var_dependencies } );
+                                var_dependencies: parsed_vn.var_dependencies,
+                                installs_map: parsed_vn.installs_map
+                              } );
     context.initialize(cb);
   }
 

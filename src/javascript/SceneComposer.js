@@ -605,6 +605,7 @@ function SceneComposer() {
       const statements = [];
       const defines = [];
       const imports = [];
+      const installs = [];
       
       // Converts the tree to a series of js functions to be evaluated,
       base.forEach( (base_stmt) => {
@@ -627,6 +628,9 @@ function SceneComposer() {
             break;
           case 'import':
             imports.push(base_stmt);
+            break;
+          case 'install':
+            installs.push(base_stmt);
             break;
           default:
             console.error(stmt_type);
@@ -659,6 +663,7 @@ function SceneComposer() {
       const out = {
         namespace:namespace_name,
         imports:[],
+        installs:[],
         base_stmts:[],
         defines:{},
         ref_array,
@@ -692,6 +697,25 @@ function SceneComposer() {
         const import_from = eval.call(null, import_stmt.r.v);
         
         out.imports.push( [ calcAddress(istmt_loc), to_import, import_from ] );
+      });
+
+      installs.forEach( (install_stmt) => {
+        const install_stmt_loc = install_stmt.loc;
+        
+        // The install target (either a string or an inline),
+        const target_expr = install_stmt.l;
+
+        let e;
+        if (target_expr.t === 'INLINE') {
+          // Convert to inline code string.
+          const inline_source = convertInlineCodeString(target_expr);
+          e = [ 'inline', inline_source, createUniqueFunctionID() ];
+        }
+        else {
+          e = toJSValue(target_expr, install_stmt_loc, ref_array);
+        }
+
+        out.installs.push( [ calcAddress(install_stmt_loc), 'install', e ] );
       });
 
       return out;
@@ -1101,9 +1125,32 @@ function SceneComposer() {
           }
           
         }
-        
+
       }
       
+    }
+
+    const installs_map = {};
+    if (errors.length === 0) {
+      // The install code,
+      // Maps codebase namespace to static installs necessary to support those
+      // functions.
+      for (const fn in codebase) {
+        const fn_tree = codebase[fn].tree;
+        const fn_installs = fn_tree.installs;
+        const namespace = fn_tree.namespace;
+        const fn_iarr = [];
+        fn_installs.forEach( (ifnc) => {
+          const src_pos = ifnc[0];
+          const fn_inst_val = ifnc[2];
+          // PENDING: Support installing file scripts (eg. './system.js')
+          if (fn_inst_val[0] !== 'inline') {
+            syntaxError('Currently only inline installs are supported', fn, src_pos);
+          }
+          fn_iarr.push(fn_inst_val);
+        } );
+        installs_map[namespace] = fn_iarr;
+      }
     }
 
     if (errors.length > 0) {
@@ -1117,11 +1164,13 @@ function SceneComposer() {
       
       // Clean up codebase,
       for (const fn in codebase) {
-        delete codebase[fn].tree.imports;
-        delete codebase[fn].tree.base_stmts;
-        delete codebase[fn].tree.defines;
-        delete codebase[fn].tree.ref_array;
-        delete codebase[fn].tree.nb_call_array;
+        const fn_tree = codebase[fn].tree;
+        delete fn_tree.imports;
+        delete fn_tree.base_stmts;
+        delete fn_tree.defines;
+        delete fn_tree.installs;
+        delete fn_tree.ref_array;
+        delete fn_tree.nb_call_array;
         codebase[fn].tree.depends = exported_vars[fn].depends;
         codebase[fn].tree.exports = exported_vars[fn].exports;
 
@@ -1136,6 +1185,7 @@ function SceneComposer() {
         var_dependencies : var_dependencies,
         global_varset : global_varset,
         global_defineset : global_defineset,
+        installs_map : installs_map,
         codebase : codebase
       };
       

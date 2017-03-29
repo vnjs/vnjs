@@ -38,7 +38,8 @@ function $(o) {
     'goto':-1,
     'preserve':-1,
     'evaluate':-1,
-    'from':-1
+    'from':-1,
+    'install':-1
   };
 
 
@@ -129,6 +130,7 @@ function $(o) {
   var VAR =      isWord('var');
   var PRESERVE = isWord('preserve');
   var EVALUATE = isWord('evaluate');
+  var INSTALL  = isWord('install');
 
   var EXPONENT = {
     test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
@@ -367,6 +369,11 @@ var grammar = {
     {"name": "constRightSide$ebnf$1", "symbols": ["constRightSide$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "constRightSide$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "constRightSide", "symbols": ["inlineCode", "constRightSide$ebnf$1"], "postprocess": nth(0)},
+    {"name": "installtarget", "symbols": ["stringval", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "installtarget$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
+    {"name": "installtarget$ebnf$1", "symbols": ["installtarget$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "installtarget$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "installtarget", "symbols": ["inlineCode", "installtarget$ebnf$1"], "postprocess": nth(0)},
     {"name": "assignment", "symbols": ["ns_local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
@@ -410,6 +417,11 @@ var grammar = {
           return { loc:loc, f:'import', l:d[2], r:d[6] }
         }
         },
+    {"name": "installstatement", "symbols": [INSTALL, "_", "installtarget"], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'install', l:d[2] }
+        }
+        },
     {"name": "conststatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'const', l:d[2], r:d[6] }
@@ -425,6 +437,7 @@ var grammar = {
     {"name": "nestedStatement", "symbols": ["nbFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["ifstatement"], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["langstatement"], "postprocess": nth(0)},
+    {"name": "baseStatement", "symbols": ["installstatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["conststatement"], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["baseMutatorCall", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["definestatement"], "postprocess": nth(0)},
