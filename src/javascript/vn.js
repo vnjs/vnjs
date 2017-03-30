@@ -629,6 +629,18 @@ function FrontEnd() {
 
   setGetOnlyProp(UContext.prototype, 'lib', function() { return context_lib });
 
+  // Exposes installed function in the context's namespace,
+  setGetOnlyProp(UContext.prototype, 'install', function() {
+    const ns = this._namespace;
+    const nsparts = ns.split('#');
+    let bc = context_lib;
+    const len = nsparts.length;
+    for (let i = 0; i < len && bc !== void 0; ++i) {
+      bc = bc[nsparts[i]];
+    }
+    return bc;
+  });
+
   // Freeze the 'UContext' class,
   Object.freeze(UContext);
   Object.freeze(UContext.prototype);

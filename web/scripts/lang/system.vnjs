@@ -32,7 +32,7 @@ const LinearGradient = {%
     var fill_style = vn_screen.get2DContext().createLinearGradient(
                           args.x1, args.y1, args.x2, args.y2);
     // Define the mutator,
-    out.mutators = context.lib.lang.system.gradientMutator(fill_style);
+    out.mutators = context.install.gradientMutator(fill_style);
     out.val = fill_style;
     return out;
   }
@@ -52,7 +52,7 @@ const RadialGradient = {%
     var fill_style = vn_screen.get2DContext().createRadialGradient(
                           args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
     // Define the mutator,
-    out.mutators = context.lib.lang.system.gradientMutator(fill_style);
+    out.mutators = context.install.gradientMutator(fill_style);
     out.val = fill_style;
     return out;
   }
