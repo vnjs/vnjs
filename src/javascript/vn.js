@@ -592,7 +592,7 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'setTargetStyle', ( canvas_element, style ) => {
     canvas_element.target_style = convertToRawStyles( style );
   });
-  setROProp(UContext.prototype, 'animate', ( canvas_element, anim_args ) => {
+  setROProp(UContext.prototype, 'interpolate', ( canvas_element, anim_args ) => {
     const { easing, time } = anim_args;
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);

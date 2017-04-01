@@ -338,8 +338,8 @@ const setTargetStyle = {%
 
 
 
-const animate = {%
-  function animate(args, context, resolve, reject) {
+const interpolate = {%
+  function interpolate(args, context, resolve, reject) {
     context.assertFunction();
     
     var element = args.default;
