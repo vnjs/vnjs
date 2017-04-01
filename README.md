@@ -22,7 +22,7 @@ npm install
 ```
 Transform vn.js into a web bundle:
 ```console
-browserify src\vn.js -t babelify --outfile web\vnweb.js
+browserify src/vn.js -t babelify --outfile web/vnweb.js
 ```
 
 ### VNJS Grammar
