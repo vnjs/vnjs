@@ -53,6 +53,9 @@ function VNScreen(canvas_window_element, config) {
   // The action queue is a list of animation actions to perform on elements on the
   // canvas.
   const active_interpolations = [];
+  
+  // The list of cycle animations currently running.
+  const active_cycles = [];
 
   
   let frame_needs_repaint = true;
@@ -211,22 +214,9 @@ function VNScreen(canvas_window_element, config) {
 
     if (do_repaint) {
 
-      // Background image
-      // PENDING: For performance, we should be able to turn the painting of this
-      //   off.
-      resetTransform(ctx);
-      // Fill the buffer with transparency squares,
-      ctx.fillStyle = 'hsl(220, 0%, 96%)';
-      ctx.fillRect(0, 0, 1280, 720);
-      ctx.fillStyle = 'hsl(220, 0%, 89%)';
-      const SQUARE_SIZE = 64;
-      for (let ty = -1; ty < (720 / SQUARE_SIZE); ++ty) {
-        for (let tx = 0; tx < (1280 / SQUARE_SIZE); ++tx) {
-          if (((tx + ty) & 0x01) === 0) {
-            ctx.fillRect(tx * SQUARE_SIZE, (ty * SQUARE_SIZE) + 8, SQUARE_SIZE, SQUARE_SIZE);
-          }
-        }
-      }
+      // PENDING: Should we clear the background here? If we don't clear by
+      //   default then it introduces some weird screen artifacts if the canvas
+      //   is not completely painted every frame.
 
       for (let i = 0; i < len; ++i) {
         const el = canvas_elements[i];
@@ -263,7 +253,8 @@ function VNScreen(canvas_window_element, config) {
     // Exit early if a repaint isn't forced, there's no interpolation anims pending,
     // and the text trail hasn't advanced,
     if (!frame_needs_repaint &&
-        active_interpolations.length === 0) {
+        active_interpolations.length === 0 &&
+        active_cycles.length === 0) {
       // Request again for the next frame,
       window.requestAnimationFrame(drawCall);
       return;
@@ -497,8 +488,36 @@ function VNScreen(canvas_window_element, config) {
 //    console.log('', canvas_elements);
   };
 
-  
-  
+  function startAnimationCycle(cycle) {
+    active_cycles.push(cycle);
+  };
+
+  function stopAnimationCycle(el, ms_to_remove) {
+    const to_remove = [];
+    active_cycles.forEach( (outer_cycle) => {
+      if (outer_cycle.canvas_element === el) {
+        to_remove.push(outer_cycle);
+      }
+    });
+
+    if (to_remove.length > 0) {
+      // Remove this item after timeout expired,
+      setTimeout( function() {
+        // Remove this item,
+        for (const i = active_cycles.length - 1; i >= 0; --i) {
+          if (to_remove.indexOf(active_cycles[i]) >= 0) {
+            active_cycles.splice(i, 1);
+            break;
+          }
+        }
+      }, ms_to_remove);
+    }
+
+  };
+
+
+
+
   // ----- Support classes -----
 
 
@@ -591,6 +610,8 @@ function VNScreen(canvas_window_element, config) {
     clearDialogText,
 
     addInterpolation,
+    startAnimationCycle,
+    stopAnimationCycle,
     notifyDoSortDepthBeforeDraw,
     addCanvasElement,
     createCanvasElement,

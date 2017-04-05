@@ -14,7 +14,25 @@ install {%
       };
     }
     
+    // Converts a color style into a format useable in a Context2D
+    function colorStyle(color_desc, default_desc) {
+      var color_desc_type = typeof color_desc;
+      if (color_desc_type !== 'undefined') {
+        if (color_desc_type === 'string') {
+          return color_desc;
+        }
+        else {
+          // This must be an object of type LinearGradient or RadialGradient,
+          // Check object type?
+          return color_desc.val;
+        }
+      }
+      // Otherwise return the default description (could be undefined),
+      return default_desc;
+    }
+    
     installer.gradientMutator = gradientMutator;
+    installer.colorStyle = colorStyle;
   }
 %}
 
@@ -27,7 +45,7 @@ const LinearGradient = {%
 
     var vn_screen = context.getVNScreen();
     var out = {
-      args,
+      args:args
     }
     var fill_style = vn_screen.get2DContext().createLinearGradient(
                           args.x1, args.y1, args.x2, args.y2);
@@ -47,7 +65,7 @@ const RadialGradient = {%
 
     var vn_screen = context.getVNScreen();
     var out = {
-      args,
+      args:args
     }
     var fill_style = vn_screen.get2DContext().createRadialGradient(
                           args.x1, args.y1, args.r1, args.x2, args.y2, args.r2);
@@ -131,20 +149,14 @@ const Rectangle = {%
       var roundedRect = context.lib.graphics.roundedRect;
       roundedRect(ctx2d, -(cstyle.width / 2), -(cstyle.height / 2), cstyle.width, cstyle.height, cstyle.corner_radius );
 
-      var type_fill_style = typeof cstyle.fill_style;
-      if (type_fill_style !== 'undefined') {
-        if (type_fill_style === 'string') {
-          ctx2d.fillStyle = cstyle.fill_style;
-        }
-        else {
-          // This must be an object of type LinearGradient or RadialGradient,
-          // Check object type?
-          ctx2d.fillStyle = cstyle.fill_style.val;
-        }
+      var fill_st = context.install.colorStyle(cstyle.fill_style);
+      if (fill_st !== void 0) {
+        ctx2d.fillStyle = fill_st;
         ctx2d.fill();
       }
-      if (cstyle.stroke_style !== void 0) {
-        ctx2d.strokeStyle = cstyle.stroke_style;
+      var stroke_st = context.install.colorStyle(cstyle.stroke_style);
+      if (stroke_st !== void 0) {
+        ctx2d.strokeStyle = stroke_st;
         if (cstyle.line_width !== void 0) {
           ctx2d.lineWidth = cstyle.line_width;
         }
@@ -160,6 +172,54 @@ const Rectangle = {%
 
   }
 %}
+
+
+
+// Rectangle with checkered pattern. Used to render transparent background.
+const CheckeredRectangle = {%
+  function CheckeredRectangle(args, context) {
+    context.assertConstructor();
+    
+    // Create the canvas element object,
+    var checkered_ce = context.createDrawCanvasElement( args );
+
+    // The draw function for this element,
+    checkered_ce.setDrawFunction( function(ctx2d, vns) {
+
+      // The current styling of the element,
+      var cstyle = checkered_ce.getStyles();
+
+      var square_size = cstyle.square_size;
+      if (square_size === void 0) {
+        square_size = 64;
+      }
+      var rwidth = cstyle.width === void 0 ? 1280 : cstyle.width;
+      var rheight = cstyle.height === void 0 ? 720 : cstyle.height;
+
+      var screen_tl_x = -(rwidth / 2);
+      var screen_tl_y = -(rheight / 2);
+
+      ctx2d.fillStyle = context.install.colorStyle(cstyle.square_color1, 'hsl(220, 0%, 96%)');
+      ctx2d.fillRect(screen_tl_x, screen_tl_y, rwidth, rheight);
+      ctx2d.fillStyle = context.install.colorStyle(cstyle.square_color1, 'hsl(220, 0%, 89%)');
+
+      for (var ty = -1; ty < (rheight / square_size); ++ty) {
+        for (var tx = 0; tx < (rwidth / square_size); ++tx) {
+          if (((tx + ty) & 0x01) === 0) {
+            ctx2d.fillRect(screen_tl_x + (tx * square_size), screen_tl_y + (ty * square_size) + 8,
+                           square_size, square_size);
+          }
+        }
+      }
+
+    });
+
+    return checkered_ce;
+  }
+%}
+
+
+
 
 
 
@@ -355,6 +415,36 @@ const interpolate = {%
 
 
 
+const startCycle = {%
+  function startCycle(args, context, resolve, reject) {
+    context.assertFunction();
+
+    var element = args.default;
+
+    context.startCycle(element.el);
+
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const stopCycle = {%
+  function stopCycle(args, context, resolve, reject) {
+    context.assertFunction();
+
+    var element = args.default;
+
+    context.stopCycle(element.el);
+
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
 const announce = {%
   function announce(args, context, resolve, reject) {
     context.assertFunction();
@@ -458,4 +548,16 @@ const wait = {%
 
   }
 %}
+
+
+
+
+// Default system elements,
+
+const transparent_background = CheckeredRectangle(
+    depth:1,
+    width:1280, height:720,
+    x:'50%', y:'50%',
+    alpha:1,
+  );
 

@@ -120,6 +120,26 @@ function loadAndParseScene(filenames, callback) {
 
 
 
+function Interpolation(type, time_start, ms_to, canvas_element) {
+  return {
+    type,
+    time_start,
+    ms_to,
+    canvas_element
+  };
+}
+
+function AnimationCycle(type, time_start, canvas_element) {
+  return {
+    type,
+    time_start,
+    canvas_element
+  }
+}
+
+
+
+
 
 function FrontEnd() {
   
@@ -477,16 +497,6 @@ function FrontEnd() {
   }
 
 
-  function Interpolation(type, ms_to, canvas_element) {
-    let time_start = vn_screen.getTimeFramestampNow();
-    return {
-      type,
-      time_start,
-      ms_to,
-      canvas_element
-    };
-  };
-
   // t = current time
   // d = total time
   // b = beginning value
@@ -549,7 +559,8 @@ function FrontEnd() {
     }
 
     const ms_to = time * 1000;
-    const i = Interpolation('styles', ms_to, el);
+    const time_start = vn_screen.getTimeFramestampNow();
+    const i = Interpolation('styles', time_start, ms_to, el);
     i.interpolate = function(ts) {
       for (let k in target_styles) {
         const from_v = cur_styles[k];
@@ -597,6 +608,8 @@ function FrontEnd() {
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);
   });
+  setROProp(UContext.prototype, 'startCycle', startCycle);
+  setROProp(UContext.prototype, 'stopCycle', stopCycle);
   setROProp(UContext.prototype, 'assertFunction', function() {
     if (this._ucodetype !== 'FUNCTION') {
       throw Error('Expecting Function');
@@ -623,7 +636,7 @@ function FrontEnd() {
   const context_lib = {};
   setROProp(context_lib, 'TextFormatter', TextFormatter);
   setROProp(context_lib, 'TextTrail', TextTrail);
-  setROProp(context_lib, 'Interpolation', Interpolation);
+//  setROProp(context_lib, 'Interpolation', Interpolation);
   setROProp(context_lib, 'graphics', Object.freeze( { roundedRect } ));
   setROProp(context_lib, 'utils', Object.freeze( { mergeConfig } ));
 
@@ -749,6 +762,34 @@ function FrontEnd() {
     return text_trail_element_map[name];
   }
 
+  // Start a cycle animation on the given canvas element. This sets a 'start_time' and
+  // 'current_time' property in the element.
+  function startCycle(el) {
+    const time_now = vn_screen.getTimeFramestampNow();
+
+    el.setStyle('start_time', time_now);
+    // Create the cycle,
+    const c = AnimationCycle('styles', time_now, el);
+    c.cycle = function(ts) {
+      // The cycle function,
+      el.setStyle('current_time', ts);
+    };
+
+    vn_screen.startAnimationCycle(c);
+  }
+
+  // Stop a cycle animation on the given canvas element. This sets a 'stop_time'
+  // property.
+  function stopCycle(el) {
+    const time_now = vn_screen.getTimeFramestampNow();
+    
+    el.setStyle('stop_time', time_now);
+    
+    // This stops the cycle and clears the AnimationCycle object after
+    // 5000 milliseconds,
+    // PENDING: Make the 5000 milliseconds a programmable argument,
+    vn_screen.stopAnimationCycle(el, 5000);
+  }
 
   // ---- System API calls ----
   
