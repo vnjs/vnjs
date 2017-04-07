@@ -129,15 +129,6 @@ function Interpolation(type, time_start, ms_to, canvas_element) {
   };
 }
 
-function AnimationCycle(type, time_start, canvas_element) {
-  return {
-    type,
-    time_start,
-    canvas_element
-  }
-}
-
-
 
 
 
@@ -608,8 +599,8 @@ function FrontEnd() {
     addInterpolations(
             canvas_element.el, canvas_element.target_style, time, easing);
   });
-  setROProp(UContext.prototype, 'startCycle', startCycle);
-  setROProp(UContext.prototype, 'stopCycle', stopCycle);
+  setROProp(UContext.prototype, 'switchOnAnimation', switchOnAnimation);
+  setROProp(UContext.prototype, 'switchOffAnimation', switchOffAnimation);
   setROProp(UContext.prototype, 'assertFunction', function() {
     if (this._ucodetype !== 'FUNCTION') {
       throw Error('Expecting Function');
@@ -742,6 +733,15 @@ function FrontEnd() {
     // Function that returns the canvas element styles,
     out.getStyles = ce.getStyles;
     setElementStyle(out, args, { 'default':-1 } );
+    // Default mutator can add an animation definition to this canvas element,
+    out.mutators = {
+      addAnimation: function(args) {
+        if (ce.animation_defs === void 0) {
+          ce.animation_defs = [];
+        }
+        ce.animation_defs.push(args);
+      }
+    };
     return out;
   }
 
@@ -762,33 +762,34 @@ function FrontEnd() {
     return text_trail_element_map[name];
   }
 
+  function getCycleStyleOb(el, cycle_name) {
+    let cycle_style = el.getStyle(cycle_name);
+    if (cycle_style === void 0) {
+      cycle_style = {
+        on: [],
+        off: []
+      };
+      el.setStyle(cycle_name, cycle_style);
+    }
+    return cycle_style;
+  }
+
   // Start a cycle animation on the given canvas element. This sets a 'start_time' and
   // 'current_time' property in the element.
-  function startCycle(el) {
+  function switchOnAnimation(el, cycle_name) {
     const time_now = vn_screen.getTimeFramestampNow();
-
-    el.setStyle('start_time', time_now);
-    // Create the cycle,
-    const c = AnimationCycle('styles', time_now, el);
-    c.cycle = function(ts) {
-      // The cycle function,
-      el.setStyle('current_time', ts);
-    };
-
-    vn_screen.startAnimationCycle(c);
+    const cycle_style_ob = getCycleStyleOb(el, cycle_name);
+    // Push the current time as an 'on' marker,
+    cycle_style_ob.on.push(time_now);
   }
 
   // Stop a cycle animation on the given canvas element. This sets a 'stop_time'
   // property.
-  function stopCycle(el) {
+  function switchOffAnimation(el, cycle_name) {
     const time_now = vn_screen.getTimeFramestampNow();
-    
-    el.setStyle('stop_time', time_now);
-    
-    // This stops the cycle and clears the AnimationCycle object after
-    // 5000 milliseconds,
-    // PENDING: Make the 5000 milliseconds a programmable argument,
-    vn_screen.stopAnimationCycle(el, 5000);
+    const cycle_style_ob = getCycleStyleOb(el, cycle_name);
+    // Push the current time as an off marker,
+    cycle_style_ob.off.push(time_now);
   }
 
   // ---- System API calls ----

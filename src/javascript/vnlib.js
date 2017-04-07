@@ -53,9 +53,6 @@ function VNScreen(canvas_window_element, config) {
   // The action queue is a list of animation actions to perform on elements on the
   // canvas.
   const active_interpolations = [];
-  
-  // The list of cycle animations currently running.
-  const active_cycles = [];
 
   
   let frame_needs_repaint = true;
@@ -177,7 +174,7 @@ function VNScreen(canvas_window_element, config) {
   function paintViewLayer(ctx, time, force_repaint) {
 
     // Interpolate all elements,
-    // Note; this provides us details about where the element was and where
+    // NOTE; This provides us details about where the element was and where
     //  it's going between frames.
     const ai_len = active_interpolations.length;
 
@@ -185,7 +182,9 @@ function VNScreen(canvas_window_element, config) {
       ai.interpolate(time);
     });
 
-    // Make sure the elements are sorted by depth, and add order,
+    // Make sure the elements are sorted by depth, and add order.
+    // NOTE; This must happen after the animation interpolations just in case
+    //  the depth style key is changed,
     const len = canvas_elements.length;
     if (sort_depth_before_draw) {
       // Stable sort of canvas_elements by depth,
@@ -247,17 +246,59 @@ function VNScreen(canvas_window_element, config) {
   function drawCall(time) {
 
     time_framestamp_valid = false;
-  
+
     // This is the render pipeline.
-  
+
+    // Now check for active animations,
+    // PERFORMANCE; Defer this check every 'n' draw calls if this becomes a
+    //    performance issue?
+    // SIDE EFFECT; This also clears up on/off animation style object,
+    let repaint_from_animations = false;
+    const ce_length = canvas_elements.length;
+    for (const n = 0; n < ce_length; ++n) {
+      const ce = canvas_elements[n];
+      // Does this element have an animation definition?
+      if (ce.animation_defs !== void 0) {
+        // Yes,
+        // Is it visible and does it have an active animation style?
+        const adefs = ce.animation_defs;
+        adefs.forEach( (def) => {
+          const anim_style_name = def.default;
+          const astyle_object = ce.getStyle(anim_style_name);
+          if (astyle_object !== void 0) {
+            // If 'astyle_object' has empty 'on' then anim not active,
+            if (astyle_object.on.length !== 0) {
+              // There's an 'on' entry, so this guarentees that the next
+              // frame must be painted,
+              // Ok, if we have an 'off' time and we are past the animation timeout,
+              const aooff_len = astyle_object.off.length;
+              if (aooff_len !== 0) {
+                const last_off_time = astyle_object.off[aooff_len - 1];
+                if ( last_off_time + (def.off_time * 1000) < time ) {
+                  // Ok, we can clear up here - but we still need to repaint this
+                  // frame,
+                  astyle_object.on = [];
+                  astyle_object.off = [];
+                  console.log("CLEAR UP ANIMATION: ", def);
+                }
+              }
+              repaint_from_animations = true;
+            }
+          }
+        });
+      }
+    }
+
     // Exit early if a repaint isn't forced, there's no interpolation anims pending,
     // and the text trail hasn't advanced,
     if (!frame_needs_repaint &&
         active_interpolations.length === 0 &&
-        active_cycles.length === 0) {
+        !repaint_from_animations) {
+
       // Request again for the next frame,
       window.requestAnimationFrame(drawCall);
       return;
+
     }
     
     // If 'force_repaint' is true then we do a full repaint,
@@ -488,32 +529,6 @@ function VNScreen(canvas_window_element, config) {
 //    console.log('', canvas_elements);
   };
 
-  function startAnimationCycle(cycle) {
-    active_cycles.push(cycle);
-  };
-
-  function stopAnimationCycle(el, ms_to_remove) {
-    const to_remove = [];
-    active_cycles.forEach( (outer_cycle) => {
-      if (outer_cycle.canvas_element === el) {
-        to_remove.push(outer_cycle);
-      }
-    });
-
-    if (to_remove.length > 0) {
-      // Remove this item after timeout expired,
-      setTimeout( function() {
-        // Remove this item,
-        for (const i = active_cycles.length - 1; i >= 0; --i) {
-          if (to_remove.indexOf(active_cycles[i]) >= 0) {
-            active_cycles.splice(i, 1);
-            break;
-          }
-        }
-      }, ms_to_remove);
-    }
-
-  };
 
 
 
@@ -610,8 +625,6 @@ function VNScreen(canvas_window_element, config) {
     clearDialogText,
 
     addInterpolation,
-    startAnimationCycle,
-    stopAnimationCycle,
     notifyDoSortDepthBeforeDraw,
     addCanvasElement,
     createCanvasElement,

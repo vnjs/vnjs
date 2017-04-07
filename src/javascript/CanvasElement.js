@@ -79,6 +79,10 @@ function CanvasElement() {
     return style;
   };
   
+  function getStyle(prop) {
+    return style[prop];
+  }
+  
   function setDirty() {
     dirty = true;
   };
@@ -131,6 +135,7 @@ function CanvasElement() {
     setRawStyles,
     setStyle,
     getStyles,
+    getStyle,
     
     setDirty,
     isDirty,

@@ -415,13 +415,14 @@ const interpolate = {%
 
 
 
-const startCycle = {%
-  function startCycle(args, context, resolve, reject) {
+const switchOnAnimation = {%
+  function switchOnAnimation(args, context, resolve, reject) {
     context.assertFunction();
 
     var element = args.default;
+    var cycle_name = args.name;
 
-    context.startCycle(element.el);
+    context.switchOnAnimation(element.el, cycle_name);
 
     // Complete,
     resolve();
@@ -430,13 +431,14 @@ const startCycle = {%
 
 
 
-const stopCycle = {%
-  function stopCycle(args, context, resolve, reject) {
+const switchOffAnimation = {%
+  function switchOffAnimation(args, context, resolve, reject) {
     context.assertFunction();
 
     var element = args.default;
+    var cycle_name = args.name;
 
-    context.stopCycle(element.el);
+    context.switchOffAnimation(element.el, cycle_name);
 
     // Complete,
     resolve();
