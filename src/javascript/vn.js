@@ -709,7 +709,79 @@ function FrontEnd() {
   }
   
   // ----- JavaScript API -----
-  
+
+  function computeLinear(cur_level, type, start, end, clip_time) {
+    const is_on = (type === 'on');
+    const final_level = is_on ? 1 : 0;
+
+    if (clip_time <= start) {
+      return cur_level;
+    }
+    else if (clip_time >= end) {
+      return final_level;
+    }
+
+    const e = end - start;
+    const p = clip_time - start;
+    const ip = ((1.0 / e) * p);
+    let fp;
+    if (is_on) {
+      fp = cur_level + ip;
+      if (fp > 1) fp = 1;
+    }
+    else {
+      fp = cur_level - ip;
+      if (fp < 0) fp = 0;
+    }
+
+    return fp;
+  }
+
+  // Calculate the animation level, which is a value between 0 and 1 indicating
+  // how far the animation is away from the start or end of the animation sequence.
+  // This value is influenced by the 'effects' array that contains time stamps
+  // indicating when the animation was switched on and off.
+  function calculateLevel(effects, def, time) {
+    // Start at level 0,
+    let level = 0;
+    for (let i = 0; i < effects.length; ++i) {
+      const ceffect = effects[i];
+
+      // Compute the effect range,
+      let start = ceffect.time;
+      let end;
+
+      // If the current time is before the start of this effect then return the
+      // level,
+      if (time < start) {
+        return level;
+      }
+
+      // If it's an 'on' effect,
+      if (ceffect.type === 'on') {
+        end = start + (def.on_time * 1000);
+      }
+      else if (ceffect.type === 'off') {
+        end = start + (def.off_time * 1000);
+      }
+      else {
+        throw Error("Unknown effect type: " + ceffect.type);
+      }
+
+      // Does the next effect fall within this range?
+      const next_ceffect = effects[i + 1];
+
+      if (next_ceffect === void 0 || time < next_ceffect.time) {
+        return computeLinear(level, ceffect.type, start, end, time);
+      }
+      else {
+        // Clip against the current range,
+        level = computeLinear(level, ceffect.type, start, end, next_ceffect.time);
+      }
+    }
+    return level;
+  }
+
   // This is the context.createDrawCanvasElement function. It returns a CanvasElement
   // on which we can register a draw function to paint arbitrary graphics to. The
   // object returned can be safely returned by a VNJS constructor inline function.
@@ -732,6 +804,29 @@ function FrontEnd() {
     }
     // Function that returns the canvas element styles,
     out.getStyles = ce.getStyles;
+    // Computes the given animation style data,
+    out.getAnimationStyle = function(in_anim_name, time_now) {
+      const cstyle = ce.getStyles();
+      const animation_defs = ce.animation_defs;
+      if (animation_defs !== void 0) {
+        const ad_len = animation_defs.length;
+        for (const adi = 0; adi < ad_len; ++adi) {
+          const anim_def = animation_defs[adi];
+          const anim_name = anim_def.default;
+          if (anim_name === in_anim_name) {
+            const anim_ob = cstyle[anim_name];
+            if (anim_ob !== void 0 && anim_ob.effects.length > 0) {
+              // Compute the current animation level and time,
+              const effects = anim_ob.effects;
+              const level = calculateLevel(effects, anim_def, time_now);
+              const time = time_now - effects[0].time;
+              return { level, time };
+            }
+            return { level:0, time:0 };
+          }
+        }
+      }
+    };
     setElementStyle(out, args, { 'default':-1 } );
     // Default mutator can add an animation definition to this canvas element,
     out.mutators = {
@@ -766,8 +861,7 @@ function FrontEnd() {
     let cycle_style = el.getStyle(cycle_name);
     if (cycle_style === void 0) {
       cycle_style = {
-        on: [],
-        off: []
+        effects: []
       };
       el.setStyle(cycle_name, cycle_style);
     }
@@ -780,7 +874,7 @@ function FrontEnd() {
     const time_now = vn_screen.getTimeFramestampNow();
     const cycle_style_ob = getCycleStyleOb(el, cycle_name);
     // Push the current time as an 'on' marker,
-    cycle_style_ob.on.push(time_now);
+    cycle_style_ob.effects.push({ type:'on', time:time_now });
   }
 
   // Stop a cycle animation on the given canvas element. This sets a 'stop_time'
@@ -789,7 +883,7 @@ function FrontEnd() {
     const time_now = vn_screen.getTimeFramestampNow();
     const cycle_style_ob = getCycleStyleOb(el, cycle_name);
     // Push the current time as an off marker,
-    cycle_style_ob.off.push(time_now);
+    cycle_style_ob.effects.push({ type:'off', time:time_now });
   }
 
   // ---- System API calls ----

@@ -141,7 +141,7 @@ const Rectangle = {%
     var rectangle_ce = context.createDrawCanvasElement( args );
 
     // The draw function for this element,
-    rectangle_ce.setDrawFunction( function(ctx2d, vns) {
+    rectangle_ce.setDrawFunction( function(ctx2d, time, vns) {
 
       // The current styling of the element,
       var cstyle = rectangle_ce.getStyles();
@@ -184,7 +184,7 @@ const CheckeredRectangle = {%
     var checkered_ce = context.createDrawCanvasElement( args );
 
     // The draw function for this element,
-    checkered_ce.setDrawFunction( function(ctx2d, vns) {
+    checkered_ce.setDrawFunction( function(ctx2d, time, vns) {
 
       // The current styling of the element,
       var cstyle = checkered_ce.getStyles();
@@ -248,7 +248,7 @@ const TextArt = {%
     var text_art = context.createDrawCanvasElement( config );
     
     // The draw function for this element,
-    text_art.setDrawFunction( function(ctx2d, vns) {
+    text_art.setDrawFunction( function(ctx2d, time, vns) {
 
       var cstyle = text_art.getStyles();
       

@@ -192,7 +192,7 @@ function TextTrail(vn_screen, config) {
   };
 
   // The CanvasElement draw method,
-  function draw(ctx, out_vnscreen) {
+  function draw(ctx, time, out_vnscreen) {
     // Paint to buffer,
     paintToBuffer(cstyle.time);
     // Paints a raw buffer.

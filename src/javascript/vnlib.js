@@ -231,7 +231,7 @@ function VNScreen(canvas_window_element, config) {
           ctx.scale(cstyle.scale_x, cstyle.scale_y);
           ctx.globalAlpha = cstyle.alpha;
           // Then call the draw function,
-          el.draw(ctx, out_vnscreen);
+          el.draw(ctx, time, out_vnscreen);
         }
       }
 
@@ -266,22 +266,23 @@ function VNScreen(canvas_window_element, config) {
           const anim_style_name = def.default;
           const astyle_object = ce.getStyle(anim_style_name);
           if (astyle_object !== void 0) {
-            // If 'astyle_object' has empty 'on' then anim not active,
-            if (astyle_object.on.length !== 0) {
+            // If 'astyle_object' has empty 'effects' then anim not active,
+            if (astyle_object.effects.length !== 0) {
               // There's an 'on' entry, so this guarentees that the next
               // frame must be painted,
-              // Ok, if we have an 'off' time and we are past the animation timeout,
-              const aooff_len = astyle_object.off.length;
-              if (aooff_len !== 0) {
-                const last_off_time = astyle_object.off[aooff_len - 1];
+              const effects = astyle_object.effects;
+              const last_effect = effects[effects.length - 1];
+              if (last_effect.type === 'off') {
+                // Ok, if we have an 'off' time and we are past the animation timeout,
+                const last_off_time = last_effect.time;
                 if ( last_off_time + (def.off_time * 1000) < time ) {
                   // Ok, we can clear up here - but we still need to repaint this
                   // frame,
-                  astyle_object.on = [];
-                  astyle_object.off = [];
+                  astyle_object.effects = [];
                   console.log("CLEAR UP ANIMATION: ", def);
                 }
               }
+              ce.setDirty();
               repaint_from_animations = true;
             }
           }
