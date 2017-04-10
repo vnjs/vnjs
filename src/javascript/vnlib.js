@@ -279,7 +279,7 @@ function VNScreen(canvas_window_element, config) {
                   // Ok, we can clear up here - but we still need to repaint this
                   // frame,
                   astyle_object.effects = [];
-                  console.log("CLEAR UP ANIMATION: ", def);
+//                  console.log("CLEAR UP ANIMATION: ", def);
                 }
               }
               ce.setDirty();

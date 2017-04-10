@@ -819,11 +819,12 @@ function FrontEnd() {
             const effects = anim_ob.effects;
             const level = calculateLevel(effects, anim_def, time_now);
             const time = time_now - effects[0].time;
-            return { level, time };
+            const speed = (anim_ob.speed === void 0) ? 1 : anim_ob.speed;
+            return { level, time, speed };
           }
           // If the animation object or there are no effects then assume
           // a level of 0,
-          return { level:0, time:0 };
+          return { level:0, time:0, speed:1 };
         }
       }
     };
@@ -913,11 +914,9 @@ function FrontEnd() {
           { type:'on', time:time_now },
           { type:'off', time:time_now + (anim_time * 1000 * speed_mult) }
         ];
-        anim_style_ob.speed = speed_mult;
+        anim_style_ob.speed = speed;
       }
     }
-    
-    console.log(el, anim_style_ob);
   }
 
   // ---- System API calls ----
