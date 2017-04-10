@@ -447,6 +447,23 @@ const switchOffAnimation = {%
 
 
 
+const triggerAnimation = {%
+  function triggerAnimation(args, context, resolve, reject) {
+    context.assertFunction();
+    
+    var element = args.default;
+    var trigger_animation_name = args.name;
+    var speed = args.speed;
+
+    context.triggerAnimation(element.el, trigger_animation_name, speed);
+    
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
 const announce = {%
   function announce(args, context, resolve, reject) {
     context.assertFunction();

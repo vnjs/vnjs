@@ -601,6 +601,7 @@ function FrontEnd() {
   });
   setROProp(UContext.prototype, 'switchOnAnimation', switchOnAnimation);
   setROProp(UContext.prototype, 'switchOffAnimation', switchOffAnimation);
+  setROProp(UContext.prototype, 'triggerAnimation', triggerAnimation);
   setROProp(UContext.prototype, 'assertFunction', function() {
     if (this._ucodetype !== 'FUNCTION') {
       throw Error('Expecting Function');
@@ -809,21 +810,20 @@ function FrontEnd() {
       const cstyle = ce.getStyles();
       const animation_defs = ce.animation_defs;
       if (animation_defs !== void 0) {
-        const ad_len = animation_defs.length;
-        for (const adi = 0; adi < ad_len; ++adi) {
-          const anim_def = animation_defs[adi];
-          const anim_name = anim_def.default;
-          if (anim_name === in_anim_name) {
-            const anim_ob = cstyle[anim_name];
-            if (anim_ob !== void 0 && anim_ob.effects.length > 0) {
-              // Compute the current animation level and time,
-              const effects = anim_ob.effects;
-              const level = calculateLevel(effects, anim_def, time_now);
-              const time = time_now - effects[0].time;
-              return { level, time };
-            }
-            return { level:0, time:0 };
+        const anim_name = in_anim_name;
+        const anim_def = animation_defs[anim_name];
+        if (anim_def !== void 0) {
+          const anim_ob = cstyle[anim_name];
+          if (anim_ob !== void 0 && anim_ob.effects.length > 0) {
+            // Compute the current animation level and time,
+            const effects = anim_ob.effects;
+            const level = calculateLevel(effects, anim_def, time_now);
+            const time = time_now - effects[0].time;
+            return { level, time };
           }
+          // If the animation object or there are no effects then assume
+          // a level of 0,
+          return { level:0, time:0 };
         }
       }
     };
@@ -831,10 +831,18 @@ function FrontEnd() {
     // Default mutator can add an animation definition to this canvas element,
     out.mutators = {
       addAnimation: function(args) {
-        if (ce.animation_defs === void 0) {
-          ce.animation_defs = [];
+        // The animation definition,
+        const def = {
+          on_time: (args.on_time === void 0) ? 0 : args.on_time,
+          off_time: (args.off_time === void 0) ? 0 : args.off_time,
+        };
+        if (args.total_time !== void 0) {
+          def.total_time = args.total_time;
         }
-        ce.animation_defs.push(args);
+        if (ce.animation_defs === void 0) {
+          ce.animation_defs = {};
+        }
+        ce.animation_defs[args.default] = def;
       }
     };
     return out;
@@ -884,6 +892,32 @@ function FrontEnd() {
     const cycle_style_ob = getCycleStyleOb(el, cycle_name);
     // Push the current time as an off marker,
     cycle_style_ob.effects.push({ type:'off', time:time_now });
+  }
+
+  // Trigger an animation,
+  function triggerAnimation(el, anim_name, speed) {
+    const time_now = vn_screen.getTimeFramestampNow();
+    const anim_style_ob = getCycleStyleOb(el, anim_name);
+    const animation_defs = el.animation_defs;
+    if (animation_defs !== void 0) {
+      const def = animation_defs[anim_name];
+      if (def !== void 0) {
+        // The defined animation time,
+        const anim_time = def.total_time;
+        if (speed === void 0 || speed < .1) {
+          speed = 1;
+        }
+        const speed_mult = 1 / speed;
+        // Set the effects object,
+        anim_style_ob.effects = [
+          { type:'on', time:time_now },
+          { type:'off', time:time_now + (anim_time * 1000 * speed_mult) }
+        ];
+        anim_style_ob.speed = speed_mult;
+      }
+    }
+    
+    console.log(el, anim_style_ob);
   }
 
   // ---- System API calls ----

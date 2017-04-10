@@ -262,8 +262,8 @@ function VNScreen(canvas_window_element, config) {
         // Yes,
         // Is it visible and does it have an active animation style?
         const adefs = ce.animation_defs;
-        adefs.forEach( (def) => {
-          const anim_style_name = def.default;
+        for (const anim_style_name in adefs) {
+          const def = adefs[anim_style_name];
           const astyle_object = ce.getStyle(anim_style_name);
           if (astyle_object !== void 0) {
             // If 'astyle_object' has empty 'effects' then anim not active,
@@ -286,7 +286,7 @@ function VNScreen(canvas_window_element, config) {
               repaint_from_animations = true;
             }
           }
-        });
+        }
       }
     }
 
