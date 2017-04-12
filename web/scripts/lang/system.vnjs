@@ -279,6 +279,40 @@ const TextArt = {%
 %}
 
 
+
+// Defines a set of areas on the screen that can receive events such as
+// mouse hover, taps, gestures, etc.
+const HitGroup = {%
+  function HitGroup(args, context) {
+    context.assertConstructor();
+
+    var vn_screen = context.getVNScreen();
+    var hit_areas = {};
+    var out = {
+      hit_areas: hit_areas,
+      args:args
+    }
+    // Define the mutator,
+    out.mutators = {
+      addHitBox: function(args) {
+        // Turn hit box into a rectangle polygon,
+        var hit_name = args.default;
+        var x = args.x - (args.width / 2);
+        var y = args.y - (args.height / 2);
+        var width = args.width;
+        var height = args.height;
+        var polygon = [ [ x, y ], [ x + width, y ],
+                        [ x + width, y + height ], [ x, y + height ] ];
+        // Add to the hit area,
+        hit_areas[hit_name] = { type:'box', args:args, polygon:polygon };
+      }
+    };
+    return out;
+
+  }
+%}
+
+
 // ----- System call library -----
 
 

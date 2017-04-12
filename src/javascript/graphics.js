@@ -5,7 +5,33 @@ const { isUndefined } = require('./utils');
 // Various graphics utilities.
 
 
+// Returns true when the given point (represented as an x, y coordinate in an
+// array) is inside the polygon represented by the set of coordinates in
+// vs. eg.
+//   point = [5, 5], vs = [[0, 0], [10, 0], [10, 10], [0, 10]], result = true.
+function isInsidePolygon(point, vs) {
+  // ray-casting algorithm based on
+  // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
 
+  const x = point[0];
+  const y = point[1];
+
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0];
+    const yi = vs[i][1];
+    const xj = vs[j][0];
+    const yj = vs[j][1];
+
+    const intersect = ((yi > y) != (yj > y))
+              && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+};
 
 function createShadowHueGradient(ctx, mid_x, mid_y, width, height, hue) {
   const gradient = ctx.createRadialGradient(
@@ -105,4 +131,4 @@ function roundedShadowedRect(ctx, x, y, width, height, radius, style) {
 
 
 
-module.exports = { roundedRect, roundedShadowedRect, createShadowHueGradient };
+module.exports = { isInsidePolygon, roundedRect, roundedShadowedRect, createShadowHueGradient };
