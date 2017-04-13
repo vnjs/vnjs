@@ -392,6 +392,20 @@ function FrontEnd() {
     return desc;
   }
 
+  function horizontalProportion(desc) {
+    // PENDING: Deal with multi-orientation display dimensions,
+    return doProportional(desc, (percent) => {
+      return 1280 * (percent / 100);
+    });
+  }
+
+  function verticalProportion(desc) {
+    // PENDING: Deal with multi-orientation display dimensions,
+    return doProportional(desc, (percent) => {
+      return 720 * (percent / 100);
+    });
+  }
+
   // Returns radians of either a string '[num]deg' or a number (as radians).
   function convertRotational(v) {
     if (typeof v === 'string') {
@@ -422,25 +436,20 @@ function FrontEnd() {
       }
       const style = styles[sk];
       switch(sk) {
-//        case 'alpha':
-//          raw_out.alpha = style;
-//          break;
         case 'rotation':
           raw_out.rotation = convertRotational(style);
           break;
         case 'x':
-          // PENDING: Deal with multi-orientation display dimensions,
-          const xval = doProportional(style, (percent) => {
-            return 1280 * (percent / 100);
-          });
-          raw_out.x = xval;
+          raw_out.x = horizontalProportion(style);
           break;
         case 'y':
-          // PENDING: Deal with multi-orientation display dimensions,
-          const yval = doProportional(style, (percent) => {
-            return 720 * (percent / 100);
-          });
-          raw_out.y = yval;
+          raw_out.y = verticalProportion(style);
+          break;
+        case 'width':
+          raw_out.width = horizontalProportion(style);
+          break;
+        case 'height':
+          raw_out.height = verticalProportion(style);
           break;
         case 'scale_x':
           const sx = doProportional(style, (percent) => {
@@ -960,8 +969,8 @@ function FrontEnd() {
     const main_div = document.getElementById("main");
 
     // PENDING: Handle narrow and wide orientations and different aspect ratios,
-    const std_wid = (1280 * 1.05).toFixed(0);
-    const std_hei = (720  * 1.05).toFixed(0);
+    const std_wid = (1280 * 1).toFixed(0);
+    const std_hei = (720  * 1).toFixed(0);
       
     // Make the canvas element,
     main_div.innerHTML = '<canvas id="vnBodyCanvas" tabindex="1" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';

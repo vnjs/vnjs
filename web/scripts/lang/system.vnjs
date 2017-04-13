@@ -297,10 +297,11 @@ const HitGroup = {%
       addHitBox: function(args) {
         // Turn hit box into a rectangle polygon,
         var hit_name = args.default;
-        var x = args.x - (args.width / 2);
-        var y = args.y - (args.height / 2);
-        var width = args.width;
-        var height = args.height;
+        var target_style = context.convertToRawStyles(args, { 'default':-1 } );
+        var x = target_style.x - (target_style.width / 2);
+        var y = target_style.y - (target_style.height / 2);
+        var width = target_style.width;
+        var height = target_style.height;
         var polygon = [ [ x, y ], [ x + width, y ],
                         [ x + width, y + height ], [ x, y + height ] ];
         // Add to the hit area,

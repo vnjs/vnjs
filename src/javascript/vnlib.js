@@ -134,9 +134,9 @@ function VNScreen(canvas_window_element, config) {
     }
   };
 
-  function containsSameTarget(a, arr, len) {
+  function containsSameTarget(target, arr, len) {
     for (let n = 0; n < len; ++n) {
-      if (a.target === arr[n].target) {
+      if (target === arr[n].target) {
         return true;
       }
     }
@@ -174,7 +174,7 @@ function VNScreen(canvas_window_element, config) {
 
       for (let i = 0; i < active_count; ++i) {
         const area = areas_active[i];
-        if (!containsSameTarget(area, current_hovered_areas, cur_count)) {
+        if (!containsSameTarget(area.target, current_hovered_areas, cur_count)) {
           // When an active area is not in the current hovered areas list,
           eventer.emit('mouseEnter', area);
           hovered_changed = true;
@@ -182,7 +182,7 @@ function VNScreen(canvas_window_element, config) {
       }
       for (let i = 0; i < cur_count; ++i) {
         const area = current_hovered_areas[i];
-        if (!containsSameTarget(area, areas_active, active_count)) {
+        if (!containsSameTarget(area.target, areas_active, active_count)) {
           // When a hovered area is not in the active list,
           eventer.emit('mouseLeave', area);
           hovered_changed = true;
@@ -192,6 +192,9 @@ function VNScreen(canvas_window_element, config) {
       // Update if changed,
       if (hovered_changed) {
         current_hovered_areas = areas_active;
+        if (cur_hit_group.args.debug === true) {
+          repaint();
+        }
       }
 
     }
@@ -335,8 +338,51 @@ function VNScreen(canvas_window_element, config) {
 
   };
 
-  
-  
+  function paintDebuggingLayer(ctx, time, force_repaint) {
+    // Paint the UI guides,
+    const hg_len = hit_group_stack.length;
+    if (hg_len > 0) {
+      const cur_hit_group = hit_group_stack[hg_len - 1];
+      // Do we show debugging for this hit group?
+      const show_debugging = cur_hit_group.args.debug;
+      if (show_debugging === true) {
+        resetTransform(ctx);
+        ctx.setLineDash([8, 5]);
+        ctx.lineWidth = .75;
+        const hit_areas = cur_hit_group.hit_areas;
+        for (let key in hit_areas) {
+          const hit_area = hit_areas[key];
+          const polygon = hit_area.polygon;
+          const polygon_len = polygon.length;
+          if (polygon_len > 1) {
+            ctx.beginPath();
+            const first_pos = polygon[0];
+            ctx.moveTo(first_pos[0], first_pos[1]);
+            for (let i = 1; i < polygon_len; ++i) {
+              const pos = polygon[i];
+              ctx.lineTo(pos[0], pos[1]);
+            }
+            ctx.closePath();
+            if (containsSameTarget(key,
+                      current_hovered_areas, current_hovered_areas.length)) {
+              ctx.strokeStyle = 'green';
+              ctx.fillStyle = 'orange';
+              ctx.globalAlpha = .2;
+            }
+            else {
+              ctx.strokeStyle = 'green';
+              ctx.fillStyle = 'green';
+              ctx.globalAlpha = .1;
+            }
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  };
+
   // Called each refresh. This will look at any visual events that are in the queue and
   // paint the canvas as appropriate.
   function drawCall(time) {
@@ -404,16 +450,31 @@ function VNScreen(canvas_window_element, config) {
     // Reset the 'repaint' flag,
     frame_needs_repaint = false;
 
-    // Start painting,
-    canvas_2dctx.save();
     try {
-      paintViewLayer(canvas_2dctx, time, force_repaint);
-    }
-    catch (e) {
-      throw e;
+      // Start painting,
+      canvas_2dctx.save();
+      try {
+        paintViewLayer(canvas_2dctx, time, force_repaint);
+      }
+      catch (e) {
+        throw e;
+      }
+      finally {
+        canvas_2dctx.restore();
+      }
+      // Debugging layer,
+      canvas_2dctx.save();
+      try {
+        paintDebuggingLayer(canvas_2dctx, time, force_repaint);
+      }
+      catch (e) {
+        throw e;
+      }
+      finally {
+        canvas_2dctx.restore();
+      }
     }
     finally {
-      canvas_2dctx.restore();
       // Request draw call again on the next frame,
       window.requestAnimationFrame(drawCall);
     }
