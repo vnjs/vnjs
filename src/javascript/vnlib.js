@@ -1,10 +1,13 @@
 "use strict";
 
 const { isUndefined, mergeConfig, polyfill2DCanvas, Rectangle } = require('./utils');
+const { isInsidePolygon } = require('./graphics.js');
 
 const TextFormatter = require('./TextFormatter').TextFormatter;
 const CanvasElement = require('./CanvasElement').CanvasElement;
 const TextTrail = require('./TextTrail').TextTrail;
+
+const EventEmitter = require('events');
 
 // Visual Novel engine base library script.
 //
@@ -38,10 +41,18 @@ function VNScreen(canvas_window_element, config) {
     mergeConfig(config, DEF_CONFIG);
   }
   
+  class VNScreenEmitter extends EventEmitter {}
+  const eventer = new VNScreenEmitter();
+  
   // The VNScreen object output,
   let out_vnscreen;
 
   const overall_scale = canvas_window_element.height / 720;
+
+  // The current stack of UI hit groups,
+  const hit_group_stack = [];
+  // The hit keys of current areas that are hovered by the mouse pointer,
+  let current_hovered_areas = [];
 
   // The current set of active elements to draw on the canvas, sorted by z depth.
   const canvas_elements = [];
@@ -80,16 +91,37 @@ function VNScreen(canvas_window_element, config) {
     // Capture the focus immediately when clicked,
     canvas_window_element.focus();
   }, false );
-  canvas_window_element.addEventListener( 'mouseup', (evt) => {
-    // On mouse up,
+  canvas_window_element.addEventListener( 'click', (evt) => {
+    // On mouse click,
     doInteractEvent();
   }, false );
+  canvas_window_element.addEventListener( 'mousemove', (evt) => {
+    // The position,
+    // NOTE: Is this compatible across all browsers? It should be.
+    // NOTE: This event isn't generated on mobile.
+    doMouseMoveEvent(evt.offsetX, evt.offsetY);
+
+  }, false );
+  canvas_window_element.addEventListener( 'mouseenter', (evt) => {
+    // The position,
+    // NOTE: Is this compatible across all browsers? It should be.
+    // NOTE: This event isn't generated on mobile.
+    doMouseMoveEvent(evt.offsetX, evt.offsetY);
+    
+  }, false);
+  canvas_window_element.addEventListener( 'mouseleave', (evt) => {
+    // HACK; When mouse leaves the canvas we fire a single mouse
+    //   move event at a coordinate outside the screen viewport.
+    doMouseMoveEvent(-5, -5);
+    
+  }, false);
+  
   
   canvas_window_element.addEventListener( 'keydown', (evt) => {
     // On key press,
     doInteractEvent();
   }, true );
-
+  
   // Called when the user actives a generic 'interact' event. The user
   // clicked or pressed a key when the canvas has focus and modal capture
   // is not currently active.
@@ -100,6 +132,70 @@ function VNScreen(canvas_window_element, config) {
       interact_callback = void 0;
       callback();
     }
+  };
+
+  function containsSameTarget(a, arr, len) {
+    for (let n = 0; n < len; ++n) {
+      if (a.target === arr[n].target) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Called when the user moves the mouse cursor around the screen. The
+  // given coordinates are raw coordinates and need to divided by the
+  // screen scale to be put into local space.
+  function doMouseMoveEvent(x, y) {
+    const rx = x / overall_scale;
+    const ry = y / overall_scale;
+
+    // Is there a hit box group registered with this screen?
+    const hg_len = hit_group_stack.length;
+    if (hg_len > 0) {
+      const cur_hit_group = hit_group_stack[hg_len - 1];
+
+      const areas_active = [];
+
+      const hit_areas = cur_hit_group.hit_areas;
+      for (const hit_key in hit_areas) {
+        const hit_area = hit_areas[hit_key];
+        const polygon = hit_area.polygon;
+        if (isInsidePolygon([ rx, ry ], polygon)) {
+          // Hit!
+          areas_active.push( { target:hit_key, hit_area:hit_area } );
+        }
+      }
+
+      // Any changes from the current hovered areas?
+      const active_count = areas_active.length;
+      const cur_count = current_hovered_areas.length;
+      let hovered_changed = false;
+
+      for (let i = 0; i < active_count; ++i) {
+        const area = areas_active[i];
+        if (!containsSameTarget(area, current_hovered_areas, cur_count)) {
+          // When an active area is not in the current hovered areas list,
+          eventer.emit('mouseEnter', area);
+          hovered_changed = true;
+        }
+      }
+      for (let i = 0; i < cur_count; ++i) {
+        const area = current_hovered_areas[i];
+        if (!containsSameTarget(area, areas_active, active_count)) {
+          // When a hovered area is not in the active list,
+          eventer.emit('mouseLeave', area);
+          hovered_changed = true;
+        }
+      }
+
+      // Update if changed,
+      if (hovered_changed) {
+        current_hovered_areas = areas_active;
+      }
+
+    }
+
   };
 
   // API function; On interact event calls the given 'callback' function.
@@ -593,6 +689,13 @@ function VNScreen(canvas_window_element, config) {
 //    return el;
 //  };
 
+  function pushHitGroup(hit_group) {
+    hit_group_stack.push(hit_group);
+  };
+  
+  function popHitGroup() {
+    return hit_group_stack.pop();
+  };
 
 
 
@@ -631,6 +734,12 @@ function VNScreen(canvas_window_element, config) {
     createCanvasElement,
     createPaintingCanvasElement,
 //    createStaticImageCanvasElement,
+
+    pushHitGroup,
+    popHitGroup,
+
+    addListener: eventer.addListener.bind(eventer),
+    removeListener: eventer.removeListener.bind(eventer),
 
     dumpDebug,
 

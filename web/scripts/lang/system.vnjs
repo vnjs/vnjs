@@ -498,6 +498,34 @@ const triggerAnimation = {%
 
 
 
+const pushHitGroup = {%
+  function pushHitGroup(args, context, resolve, reject) {
+    context.assertFunction();
+
+    var hit_group = args.default;
+
+    context.pushHitGroup(hit_group);
+
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
+const popHitGroup = {%
+  function popHitGroup(args, context, resolve, reject) {
+    context.assertFunction();
+
+    context.popHitGroup(hit_group);
+
+    // Complete,
+    resolve();
+  }
+%}
+
+
+
 const announce = {%
   function announce(args, context, resolve, reject) {
     context.assertFunction();
@@ -519,7 +547,7 @@ const announce = {%
     var text_trail = context.getTextTrail(trail_target);
     if (!text_trail.displayed) {
       text_trail.displayed = true;
-      context.callUserCode(text_trail.enter_fun, {});
+      context.callSynchronousUserCode(text_trail.enter_fun, {});
     }
 
     // Measure and format the text to be displayed,

@@ -615,6 +615,12 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'getVNScreen', () => {
     return vn_screen;
   });
+  setROProp(UContext.prototype, 'pushHitGroup', (hit_group) => {
+    vn_screen.pushHitGroup(hit_group);
+  });
+  setROProp(UContext.prototype, 'popHitGroup', () => {
+    vn_screen.popHitGroup();
+  });
   setROProp(UContext.prototype, 'createDrawCanvasElement', createDrawCanvasElement);
   setROProp(UContext.prototype, 'setElementStyle', setElementStyle);
   setROProp(UContext.prototype, 'convertToRawStyles', convertToRawStyles);
@@ -622,6 +628,7 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'setTextTrail', setTextTrail);
   setROProp(UContext.prototype, 'getTextTrail', getTextTrail);
   setROProp(UContext.prototype, 'callUserCode', callUserCode);
+  setROProp(UContext.prototype, 'callSynchronousUserCode', callSynchronousUserCode);
 //  setROProp(UContext.prototype, '', );
 
   // Built in libraries,
@@ -683,7 +690,14 @@ function FrontEnd() {
     return func.call(null, args, context, resolve, reject);
 
   }
-  
+
+  function noAsyncCall() {
+    throw Error('Invalid asynchronous function call');
+  }
+  function callSynchronousUserCode(func, args) {
+    return callUserCode(func, args, noAsyncCall, noAsyncCall);
+  }
+
   // Executes an installer function, which changes the 'context_lib' object. Used
   // to install new JavaScript functions.
   function doExecuteInstaller(namespace, install_fun) {
@@ -708,6 +722,24 @@ function FrontEnd() {
       bc[iname] = installer[iname];
     }
   }
+  
+  // ----- Events -----
+  
+  // Callback from VNScreen when the mouse cursor moves over a hit area.
+  // This should perform a callback into user code to handle the event action.
+  function onMouseEnterHitArea(evt) {
+    const dispatch_to = evt.hit_area.args.on_enter;
+    if (dispatch_to !== void 0) {
+      callSynchronousUserCode(dispatch_to, { type:'mouseEnter', target:evt.target });
+    }
+  }
+  function onMouseLeaveHitArea(evt) {
+    const dispatch_to = evt.hit_area.args.on_leave;
+    if (dispatch_to !== void 0) {
+      callSynchronousUserCode(dispatch_to, { type:'mouseLeave', target:evt.target });
+    }
+  }
+  
   
   // ----- JavaScript API -----
 
@@ -928,14 +960,18 @@ function FrontEnd() {
     const main_div = document.getElementById("main");
 
     // PENDING: Handle narrow and wide orientations and different aspect ratios,
-    const std_wid = (1280 * 1).toFixed(0);
-    const std_hei = (720  * 1).toFixed(0);
+    const std_wid = (1280 * 1.05).toFixed(0);
+    const std_hei = (720  * 1.05).toFixed(0);
       
     // Make the canvas element,
     main_div.innerHTML = '<canvas id="vnBodyCanvas" tabindex="1" width="' + std_wid + '" height="' + std_hei + '" ></canvas>';
 
     display_canvas = document.getElementById("vnBodyCanvas");
     vn_screen = VNScreen(display_canvas, config);
+
+    // Add event listeners,
+    vn_screen.addListener('mouseEnter', onMouseEnterHitArea);
+    vn_screen.addListener('mouseLeave', onMouseLeaveHitArea);
 
     cb( null, { status:'initializeret' } );
 
