@@ -749,6 +749,13 @@ function FrontEnd() {
     }
   }
   
+  function onTapHitArea(evt) {
+    const dispatch_to = evt.hit_area.args.on_tap;
+    if (dispatch_to !== void 0) {
+      callSynchronousUserCode(dispatch_to, { type:'tap', target:evt.target });
+    }
+  }
+  
   
   // ----- JavaScript API -----
 
@@ -981,6 +988,7 @@ function FrontEnd() {
     // Add event listeners,
     vn_screen.addListener('mouseEnter', onMouseEnterHitArea);
     vn_screen.addListener('mouseLeave', onMouseLeaveHitArea);
+    vn_screen.addListener('tap', onTapHitArea);
 
     cb( null, { status:'initializeret' } );
 

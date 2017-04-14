@@ -92,20 +92,22 @@ function VNScreen(canvas_window_element, config) {
     canvas_window_element.focus();
   }, false );
   canvas_window_element.addEventListener( 'click', (evt) => {
+    // Callback for mouse click,
+    doTapEvent(evt.offsetX, evt.offsetY);
     // On mouse click,
     doInteractEvent();
   }, false );
   canvas_window_element.addEventListener( 'mousemove', (evt) => {
     // The position,
     // NOTE: Is this compatible across all browsers? It should be.
-    // NOTE: This event isn't generated on mobile.
+    // NOTE: This event is generated on mobile via mouse emulation.
     doMouseMoveEvent(evt.offsetX, evt.offsetY);
 
   }, false );
   canvas_window_element.addEventListener( 'mouseenter', (evt) => {
     // The position,
     // NOTE: Is this compatible across all browsers? It should be.
-    // NOTE: This event isn't generated on mobile.
+    // NOTE: This event is generated on mobile via mouse emulation.
     doMouseMoveEvent(evt.offsetX, evt.offsetY);
     
   }, false);
@@ -143,10 +145,9 @@ function VNScreen(canvas_window_element, config) {
     return false;
   }
 
-  // Called when the user moves the mouse cursor around the screen. The
-  // given coordinates are raw coordinates and need to divided by the
-  // screen scale to be put into local space.
-  function doMouseMoveEvent(x, y) {
+  // Returns an array of all areas in the current hit group that are inside
+  // the point represented by x,y. The coordinates are raw screen position.
+  function allHitElementsOn(x, y) {
     const rx = x / overall_scale;
     const ry = y / overall_scale;
 
@@ -166,37 +167,61 @@ function VNScreen(canvas_window_element, config) {
           areas_active.push( { target:hit_key, hit_area:hit_area } );
         }
       }
+      return areas_active;
+    }
+    return [];
+  }
 
-      // Any changes from the current hovered areas?
-      const active_count = areas_active.length;
-      const cur_count = current_hovered_areas.length;
-      let hovered_changed = false;
+  // Called when the user clicks or taps on the screen. The given
+  // coordinates are raw coords and need to be divided by the screen
+  // scale to be put into local space.
+  function doTapEvent(x, y) {
+    const areas_active = allHitElementsOn(x, y);
+    const active_count = areas_active.length;
+    for (let i = 0; i < active_count; ++i) {
+      const area = areas_active[i];
+      eventer.emit('tap', area);
+    }
+  }
 
-      for (let i = 0; i < active_count; ++i) {
-        const area = areas_active[i];
-        if (!containsSameTarget(area.target, current_hovered_areas, cur_count)) {
-          // When an active area is not in the current hovered areas list,
-          eventer.emit('mouseEnter', area);
-          hovered_changed = true;
-        }
+  // Called when the user moves the mouse cursor around the screen. The
+  // given coordinates are raw coordinates and need to divided by the
+  // screen scale to be put into local space.
+  function doMouseMoveEvent(x, y) {
+
+    const areas_active = allHitElementsOn(x, y);
+    const active_count = areas_active.length;
+    // Any changes from the current hovered areas?
+    const cur_count = current_hovered_areas.length;
+    // We remember the hit group on the chance the 'eventer.emit' methods
+    // have a side effect of changing the hit group stack.
+    const cur_hit_group = hit_group_stack[hit_group_stack.length - 1];
+    let hovered_changed = false;
+
+    for (let i = 0; i < active_count; ++i) {
+      const area = areas_active[i];
+      if (!containsSameTarget(area.target, current_hovered_areas, cur_count)) {
+        // When an active area is not in the current hovered areas list,
+        eventer.emit('mouseEnter', area);
+        hovered_changed = true;
       }
-      for (let i = 0; i < cur_count; ++i) {
-        const area = current_hovered_areas[i];
-        if (!containsSameTarget(area.target, areas_active, active_count)) {
-          // When a hovered area is not in the active list,
-          eventer.emit('mouseLeave', area);
-          hovered_changed = true;
-        }
+    }
+    for (let i = 0; i < cur_count; ++i) {
+      const area = current_hovered_areas[i];
+      if (!containsSameTarget(area.target, areas_active, active_count)) {
+        // When a hovered area is not in the active list,
+        eventer.emit('mouseLeave', area);
+        hovered_changed = true;
       }
+    }
 
-      // Update if changed,
-      if (hovered_changed) {
-        current_hovered_areas = areas_active;
-        if (cur_hit_group.args.debug === true) {
-          repaint();
-        }
+    // Update if changed,
+    if (hovered_changed) {
+      current_hovered_areas = areas_active;
+      // If the current hit group has 'debug' enabled then repaint,
+      if (cur_hit_group.args.debug === true) {
+        repaint();
       }
-
     }
 
   };
@@ -347,6 +372,7 @@ function VNScreen(canvas_window_element, config) {
       const show_debugging = cur_hit_group.args.debug;
       if (show_debugging === true) {
         resetTransform(ctx);
+        ctx.globalCompositeOperation = 'multiply';
         ctx.setLineDash([8, 5]);
         ctx.lineWidth = .75;
         const hit_areas = cur_hit_group.hit_areas;
@@ -367,18 +393,22 @@ function VNScreen(canvas_window_element, config) {
                       current_hovered_areas, current_hovered_areas.length)) {
               ctx.strokeStyle = 'green';
               ctx.fillStyle = 'orange';
-              ctx.globalAlpha = .2;
+              ctx.globalAlpha = .4;
             }
             else {
               ctx.strokeStyle = 'green';
               ctx.fillStyle = 'green';
-              ctx.globalAlpha = .1;
+              ctx.globalAlpha = .25;
             }
             ctx.fill();
             ctx.globalAlpha = 1.0;
             ctx.stroke();
           }
         }
+        // Reset context,
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
       }
     }
   };
