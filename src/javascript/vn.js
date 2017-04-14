@@ -307,6 +307,7 @@ function FrontEnd() {
 
       const func_factory = eval.call(null, fdef[1]);
       const constants_access = {};
+      const inline_defines = {};
 
       // Wrap the inline function,
       const wrapped_func_fact = function() {
@@ -315,6 +316,7 @@ function FrontEnd() {
         const arg1 = arguments[1];
         if (arg1 !== void 0 && arg1 instanceof UContext) {
           arg1._allowAccess(namespace, constants_access);
+          arg1._setInlineDefines(inline_defines);
         }
         return func_factory.apply(null, arguments);
       }
@@ -328,6 +330,7 @@ function FrontEnd() {
         // Mutator functions,
         const mutator_name = def[i][1];
         const args = toJSParameterMap(def[i][2]);
+
         if (mutator_name === 'registerConstant') {
           // Register constant for this function to be able to access,
           const constant_val = args['default'];
@@ -341,7 +344,32 @@ function FrontEnd() {
           constants_access[constant_key] = constant_val;
         }
         else {
-          throw Error("Unknown inline mutator '" + mutator_name + "' for: " + ident);
+          // defineXXXX mutators on inline functions are wrapped with the
+          // function to be executed.
+          //
+          // For example,
+          //     ui.defineAnimation('cycle', time:5);
+          //     ui.defineAnimation('cycle2', time:2);
+          // turns into,
+          //     inline_defines = {
+          //         animation:[ { default:'cycle', time:5 },
+          //                     { default:'cycle2', time:2 } ]
+          //     }
+          if (mutator_name.startsWith('define')) {
+            const define_type = mutator_name.substring(6).toLowerCase();
+            if (define_type.length === 0) {
+              define_type = '#';
+            }
+            let darr = inline_defines[define_type];
+            if (darr === void 0) {
+              darr = [];
+              inline_defines[define_type] = darr;
+            }
+            darr.push(args);
+          }
+          else {
+            throw Error("Unknown inline mutator '" + mutator_name + "' for: " + ident);
+          }
         }
       }
     }
@@ -676,6 +704,7 @@ function FrontEnd() {
     // If 'resolve' is undefined then this is a constructor call,
     context._ucodetype = (resolve !== void 0) ? 'FUNCTION' : 'CONSTRUCTOR';
     let tc_valid_objects;
+    let inline_defines;
 
     context._allowAccess = function(namespace, valid_objects) {
       if (tc_valid_objects === void 0) {
@@ -686,6 +715,9 @@ function FrontEnd() {
         throw Error("Permission denied");
       }
     };
+    context._setInlineDefines = function(in_inline_defines) {
+      inline_defines = in_inline_defines;
+    };
     context.getConstant = function(constant_key) {
       if (tc_valid_objects !== void 0) {
         const val = tc_valid_objects[constant_key];
@@ -694,6 +726,9 @@ function FrontEnd() {
         }
       }
       throw Error('Access to ' + constant_key + ' not permitted');
+    };
+    context.getDefines = function() {
+      return inline_defines;
     };
 
     return func.call(null, args, context, resolve, reject);
@@ -835,6 +870,14 @@ function FrontEnd() {
   // on which we can register a draw function to paint arbitrary graphics to. The
   // object returned can be safely returned by a VNJS constructor inline function.
   function createDrawCanvasElement(args, width, height) {
+    // Assert the context,
+    if (!(this instanceof UContext)) {
+      throw Error("Must be called in a UContext");
+    }
+    
+    // Ew, 'this',
+    const context = this;
+    
     const out = {
       args,
     };
@@ -877,9 +920,11 @@ function FrontEnd() {
       }
     };
     setElementStyle(out, args, { 'default':-1 } );
-    // Default mutator can add an animation definition to this canvas element,
-    out.mutators = {
-      addAnimation: function(args) {
+    
+    // Copy the animation defines,
+    const anim_defines = context.getDefines().animation;
+    if (anim_defines !== void 0) {
+      anim_defines.forEach((args) => {
         // The animation definition,
         const def = {
           on_time: (args.on_time === void 0) ? 0 : args.on_time,
@@ -892,8 +937,9 @@ function FrontEnd() {
           ce.animation_defs = {};
         }
         ce.animation_defs[args.default] = def;
-      }
-    };
+      });
+    }
+
     return out;
   }
 
