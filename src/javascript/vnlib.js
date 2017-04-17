@@ -92,10 +92,22 @@ function VNScreen(canvas_window_element, config) {
   canvas_window_element.addEventListener( 'mousedown', (evt) => {
     // Capture the focus immediately when clicked,
     canvas_window_element.focus();
+    // The position,
+    // NOTE: Is this compatible across all browsers? It should be.
+    // NOTE: This event is generated on mobile via mouse emulation.
+    doMouseDownEvent(evt.offsetX, evt.offsetY, evt.button);
+
+  }, false );
+  canvas_window_element.addEventListener( 'mouseup', (evt) => {
+    // The position,
+    // NOTE: Is this compatible across all browsers? It should be.
+    // NOTE: This event is generated on mobile via mouse emulation.
+    doMouseUpEvent(evt.offsetX, evt.offsetY, evt.button);
+
   }, false );
   canvas_window_element.addEventListener( 'click', (evt) => {
     // Callback for mouse click,
-    const dispatched = doTapEvent(evt.offsetX, evt.offsetY);
+    const dispatched = doTapEvent(evt.offsetX, evt.offsetY, evt.button);
     // On mouse click,
     if (!dispatched) {
       doInteractEvent();
@@ -176,19 +188,37 @@ function VNScreen(canvas_window_element, config) {
     return [];
   }
 
-  // Called when the user clicks or taps on the screen. The given
-  // coordinates are raw coords and need to be divided by the screen
-  // scale to be put into local space.
-  function doTapEvent(x, y) {
+  // Emits a mouse event. Bridges between native javascript event
+  // handler and the vnjs event handler.
+  function emitMouseEvent(emit_name, x, y, button_mask) {
     const areas_active = allHitElementsOn(x, y);
     const active_count = areas_active.length;
     let dispatched = false;
     for (let i = 0; i < active_count; ++i) {
       const area = areas_active[i];
-      eventer.emit('tap', area);
+      eventer.emit(emit_name, area);
       dispatched = true;
     }
     return dispatched;
+  }
+
+  // Called when the user clicks or taps on the screen. The given
+  // coordinates are raw coords and need to be divided by the screen
+  // scale to be put into local space.
+  function doTapEvent(x, y, button_mask) {
+    return emitMouseEvent('tap', x, y, button_mask);
+  }
+
+  // Called when the user presses a mouse button on a location on
+  // the screen. The given coordinates are raw coords.
+  function doMouseDownEvent(x, y, button_mask) {
+    return emitMouseEvent('mouseDown', x, y, button_mask);
+  }
+
+  // Called when the user releases a mouse button on a location on
+  // the screen. The given coordinates are raw coords.
+  function doMouseUpEvent(x, y, button_mask) {
+    return emitMouseEvent('mouseUp', x, y, button_mask);
   }
 
   // Called when the user moves the mouse cursor around the screen. The
