@@ -24,9 +24,6 @@ polyfill2DCanvas();
 
 // Default configuration,
 const DEF_CONFIG = {
-
-  enable_dirty_clipping: false,
-  
 };
 
 // VNScreen factory function,
