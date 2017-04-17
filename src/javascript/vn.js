@@ -955,15 +955,11 @@ function FrontEnd() {
 
   // Sets a named text trail. Use a name of 'default' to set the default text
   // trail.
-  function setTextTrail(name, text_trail, enter, exit) {
+  function setTextTrail(name, text_trail) {
     if (text_trail === void 0 || text_trail.ob !== 'lang#system#TextTrail') {
       throw Error('Assert failed: expecting a text trail object');
     }
     text_trail_element_map[name] = text_trail;
-    // Register functions for displaying or removing the text trail,
-    text_trail.enter_fun = enter;
-    text_trail.exit_fun = exit;
-    text_trail.displayed = false;
   }
 
   function getTextTrail(name) {

@@ -119,7 +119,19 @@ const TextTrail = {%
       
       var out = {
         args: args,
-        el: text_trail_ce
+        el: text_trail_ce,
+        displayed: false,
+        // Define the mutator,
+        mutators: {
+          setEnterAction: function(args) {
+            var enter_action = args.default;
+            out.enter_fun = enter_action;
+          },
+          setLeaveAction: function(args) {
+            var leave_action = args.default;
+            out.leave_fun = leave_action;
+          }
+        }
       };
 
       context.setElementStyle(out, args, { buffer_width:-1, buffer_height:-1 } );
@@ -370,11 +382,9 @@ const setDefaultTextTrail = {%
     context.assertFunction();
     
     var text_trail = args.default;
-    var enter = args.enter;
-    var exit = args.exit;
 
     // Set the default text trail,
-    context.setTextTrail('default', text_trail, enter, exit);
+    context.setTextTrail('default', text_trail);
     
     // Complete,
     resolve();
@@ -389,10 +399,8 @@ const setTextTrail = {%
     
     var text_trail = args.default;
     var tt_name = args.name;
-    var enter = args.enter;
-    var exit = args.exit;
     
-    context.setTextTrail(tt_name, text_trail, enter, exit);
+    context.setTextTrail(tt_name, text_trail);
     
     // Complete,
     resolve();
