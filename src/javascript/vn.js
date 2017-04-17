@@ -787,21 +787,38 @@ function FrontEnd() {
       callSynchronousUserCode(dispatch_to, { type:'mouseLeave', target:evt.target });
     }
   }
-  
-  function onTapHitArea(evt) {
-    const dispatch_to = evt.hit_area.args.on_tap;
+
+  function onGeneralMouseButtonEvent(evt, event_function_name, event_type) {
+    // For example, 'evt.hit_area.args.on_tap'
+    const dispatch_to = evt.hit_area.args[event_function_name];
+    // If there's a function to dispatch to,
     if (dispatch_to !== void 0) {
+      // Make a user event object,
       const uevt = {
-        type:'tap',
-        target:evt.target,
-        bubble:false
+        type: event_type,
+        target: evt.target,
+        bubble: false
       };
+      // Go to user code,
       callSynchronousUserCode(dispatch_to, uevt);
+      // Transfer the bubble command back to the original event,
       evt.bubble = uevt.bubble;
     }
   }
-  
-  
+
+  function onMouseDownHitArea(evt) {
+    onGeneralMouseButtonEvent(evt, 'on_down', 'mouseDown');
+  }
+
+  function onMouseUpHitArea(evt) {
+    onGeneralMouseButtonEvent(evt, 'on_up', 'mouseUp');
+  }
+
+  function onTapHitArea(evt) {
+    onGeneralMouseButtonEvent(evt, 'on_tap', 'tap');
+  }
+
+
   // ----- JavaScript API -----
 
   function computeLinear(cur_level, type, start, end, clip_time) {
@@ -1040,6 +1057,8 @@ function FrontEnd() {
     // Add event listeners,
     vn_screen.addListener('mouseEnter', onMouseEnterHitArea);
     vn_screen.addListener('mouseLeave', onMouseLeaveHitArea);
+    vn_screen.addListener('mouseDown', onMouseDownHitArea);
+    vn_screen.addListener('mouseUp', onMouseUpHitArea);
     vn_screen.addListener('tap', onTapHitArea);
 
     cb( null, { status:'initializeret' } );
