@@ -78,7 +78,9 @@ function VNScreen(canvas_window_element, config) {
   let interact_callback;
   
   // User events object. Maps from event name to array of functions to execute,
-  let user_events = {};
+  const user_events = new VNScreenEmitter();
+  
+  
   
   // Maps image id to Image object,
   const images_map = {};
@@ -828,22 +830,11 @@ function VNScreen(canvas_window_element, config) {
   // When an event with the given name is emitted, calls the given function.
   // Will only call the function once.
   function onUserEvent(event_name, func) {
-    let uevent_listeners = user_events[event_name];
-    if (uevent_listeners === void 0) {
-      uevent_listeners = [];
-      user_events[event_name] = uevent_listeners;
-    }
-    uevent_listeners.push(func);
+    user_events.once(event_name, func);
   };
 
   function emitUserEvent(event_name, args) {
-    const uevent_listeners = user_events[event_name];
-    if (uevent_listeners !== void 0) {
-      for (let i = 0; i < uevent_listeners.length; ++i) {
-        uevent_listeners[i](event_name, args);
-      }
-      user_events[event_name] = [];
-    }
+    user_events.emit(event_name, args);
   };
 
 
