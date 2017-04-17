@@ -652,7 +652,9 @@ function FrontEnd() {
   setROProp(UContext.prototype, 'getTextTrail', getTextTrail);
   setROProp(UContext.prototype, 'callUserCode', callUserCode);
   setROProp(UContext.prototype, 'callSynchronousUserCode', callSynchronousUserCode);
+  setROProp(UContext.prototype, 'emitEvent', emitEvent);
 //  setROProp(UContext.prototype, '', );
+
 
   // Built in libraries,
   const context_lib = {};
@@ -734,6 +736,16 @@ function FrontEnd() {
     return callUserCode(func, args, noAsyncCall, noAsyncCall);
   }
 
+  // Emits an event from a context.
+  function emitEvent(event_name) {
+    const args = [];
+    for (let i = 1; i < arguments.length; ++i) {
+      args.push(arguments[i]);
+    }
+    // Notify any 'waits' that need to be triggered by this event type,
+    vn_screen.emitUserEvent(event_name, args);
+  }
+
   // Executes an installer function, which changes the 'context_lib' object. Used
   // to install new JavaScript functions.
   function doExecuteInstaller(namespace, install_fun) {
@@ -779,7 +791,13 @@ function FrontEnd() {
   function onTapHitArea(evt) {
     const dispatch_to = evt.hit_area.args.on_tap;
     if (dispatch_to !== void 0) {
-      callSynchronousUserCode(dispatch_to, { type:'tap', target:evt.target });
+      const uevt = {
+        type:'tap',
+        target:evt.target,
+        bubble:false
+      };
+      callSynchronousUserCode(dispatch_to, uevt);
+      evt.bubble = uevt.bubble;
     }
   }
   

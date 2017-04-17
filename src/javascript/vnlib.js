@@ -77,6 +77,8 @@ function VNScreen(canvas_window_element, config) {
   // Called and cleared when an interact event happens,
   let interact_callback;
   
+  // User events object. Maps from event name to array of functions to execute,
+  let user_events = {};
   
   // Maps image id to Image object,
   const images_map = {};
@@ -93,9 +95,11 @@ function VNScreen(canvas_window_element, config) {
   }, false );
   canvas_window_element.addEventListener( 'click', (evt) => {
     // Callback for mouse click,
-    doTapEvent(evt.offsetX, evt.offsetY);
+    const dispatched = doTapEvent(evt.offsetX, evt.offsetY);
     // On mouse click,
-    doInteractEvent();
+    if (!dispatched) {
+      doInteractEvent();
+    }
   }, false );
   canvas_window_element.addEventListener( 'mousemove', (evt) => {
     // The position,
@@ -178,10 +182,13 @@ function VNScreen(canvas_window_element, config) {
   function doTapEvent(x, y) {
     const areas_active = allHitElementsOn(x, y);
     const active_count = areas_active.length;
+    let dispatched = false;
     for (let i = 0; i < active_count; ++i) {
       const area = areas_active[i];
       eventer.emit('tap', area);
+      dispatched = true;
     }
+    return dispatched;
   }
 
   // Called when the user moves the mouse cursor around the screen. The
@@ -788,6 +795,26 @@ function VNScreen(canvas_window_element, config) {
     return hit_group_stack.pop();
   };
 
+  // When an event with the given name is emitted, calls the given function.
+  // Will only call the function once.
+  function onUserEvent(event_name, func) {
+    let uevent_listeners = user_events[event_name];
+    if (uevent_listeners === void 0) {
+      uevent_listeners = [];
+      user_events[event_name] = uevent_listeners;
+    }
+    uevent_listeners.push(func);
+  };
+
+  function emitUserEvent(event_name, args) {
+    const uevent_listeners = user_events[event_name];
+    if (uevent_listeners !== void 0) {
+      for (let i = 0; i < uevent_listeners.length; ++i) {
+        uevent_listeners[i](event_name, args);
+      }
+      user_events[event_name] = [];
+    }
+  };
 
 
   function dumpDebug(output) {
@@ -828,6 +855,9 @@ function VNScreen(canvas_window_element, config) {
 
     pushHitGroup,
     popHitGroup,
+
+    onUserEvent,
+    emitUserEvent,
 
     addListener: eventer.addListener.bind(eventer),
     removeListener: eventer.removeListener.bind(eventer),

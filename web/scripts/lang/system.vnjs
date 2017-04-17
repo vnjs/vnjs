@@ -539,11 +539,6 @@ const announce = {%
     if (trail_target === void 0) {
       trail_target = 'default';
     }
-    // After, should we wait for interaction? (default: wait on interact)
-    var until = args.until;
-    var continueAfter = args.continueAfter;
-    // Should we break on interact?
-    var breakOnInteract = args.breakOnInteract;
 
     var text_trail = context.getTextTrail(trail_target);
     if (!text_trail.displayed) {
@@ -568,8 +563,23 @@ const announce = {%
       // Clear the animation before we callback after interact,
       text_trail.el.clearAnimation();
       // Complete,
-      resolve();
+      var acopy = [];
+      for (var i = 0; i < arguments.length; ++i) {
+        acopy.push(arguments[i]);
+      }
+      resolve(acopy);
     };
+
+    // The number of seconds to wait,
+    var continueAfter = args.continueAfter;
+    // Should we break on interact?
+    var breakOnInteract = args.breakOnInteract;
+    // Break on event?
+    var breakOnEvent = args.breakOnEvent;
+    // Do we break on event?
+    if (breakOnEvent !== void 0) {
+      vn_screen.onUserEvent(breakOnEvent, finish_cb);
+    }
     // Do we not allow interact to break the wait?
     if (breakOnInteract === false) {
       // So just wait,
@@ -581,11 +591,13 @@ const announce = {%
       }
     }
     else {
-      if (continueAfter === void 0) {
-        vn_screen.setInteractCallback(finish_cb);
-      }
-      else {
-        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+      if (breakOnEvent === void 0 || breakOnInteract === true) {
+        if (continueAfter === void 0) {
+          vn_screen.setInteractCallback(finish_cb);
+        }
+        else {
+          vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+        }
       }
     }
     
@@ -600,15 +612,25 @@ const wait = {%
     
     var vn_screen = context.getVNScreen();
 
+    var finish_cb = function() {
+      // Complete,
+      var acopy = [];
+      for (var i = 0; i < arguments.length; ++i) {
+        acopy.push(arguments[i]);
+      }
+      resolve(acopy);
+    };
+
     // The number of seconds to wait,
     var continueAfter = args.continueAfter;
     // Should we break on interact?
     var breakOnInteract = args.breakOnInteract;
-
-    var finish_cb = function() {
-      // Complete,
-      resolve();
-    };
+    // Break on event?
+    var breakOnEvent = args.breakOnEvent;
+    // Do we break on event?
+    if (breakOnEvent !== void 0) {
+      vn_screen.onUserEvent(breakOnEvent, finish_cb);
+    }
     // Do we not allow interact to break the wait?
     if (breakOnInteract === false) {
       // So just wait,
@@ -620,11 +642,13 @@ const wait = {%
       }
     }
     else {
-      if (continueAfter === void 0) {
-        vn_screen.setInteractCallback(finish_cb);
-      }
-      else {
-        vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+      if (breakOnEvent === void 0 || breakOnInteract === true) {
+        if (continueAfter === void 0) {
+          vn_screen.setInteractCallback(finish_cb);
+        }
+        else {
+          vn_screen.setInteractOrWaitCallback(continueAfter, finish_cb);
+        }
       }
     }
 
