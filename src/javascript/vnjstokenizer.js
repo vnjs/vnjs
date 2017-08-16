@@ -1,5 +1,7 @@
 "use strict";
 
+// Standard tokenizer. Should be useful for any language.
+
 function isWhitespace(ch) {
   switch (ch) {
     case ' ':
@@ -34,18 +36,18 @@ function isNumber(ch) {
 
 
 function Tokenizer( source_code ) {
-  
+
   let i = 0;
   let len = source_code.length;
   let state = 0;
-  
+
   let tokens = [];
 
   function pushToken(type, content) {
     tokens.push( [ type, content, i ] );
   };
-  
-  
+
+
   function consumeWhitespace(n) {
     while (n < len && isWhitespace(source_code.charAt(n))) {
       ++n;
@@ -66,8 +68,8 @@ function Tokenizer( source_code ) {
     pushToken('s', source_code.substring(i, i + p));
     return p;
   }
-  
-  
+
+
   function consumeLineComment(n) {
     n += 2;
     for (; n < len; ++n) {
@@ -83,7 +85,7 @@ function Tokenizer( source_code ) {
     pushToken('c', source_code.substring(i, n));
     i = n;
   }
-  
+
   function consumeBlockComment(n) {
     n += 2;
     for (; n < len; ++n) {
@@ -118,7 +120,7 @@ function Tokenizer( source_code ) {
     pushToken('ic', source_code.substring(i + 2, n - 2));
     i = n;
   }
-  
+
   // Integer number only,
   function consumeNumber(n) {
     ++n;
@@ -128,7 +130,7 @@ function Tokenizer( source_code ) {
     pushToken('n', source_code.substring(i, n));
     i = n;
   }
-  
+
   function consumeWord(n) {
     ++n;
     while (n < len && isLetterOrNumber(source_code.charAt(n))) {
@@ -137,7 +139,7 @@ function Tokenizer( source_code ) {
     pushToken('i', source_code.substring(i, n));
     i = n;
   }
-  
+
   function consumeString(n, terminating_char) {
     ++n;
     while (n < len) {
@@ -174,15 +176,15 @@ function Tokenizer( source_code ) {
         i = n;
         return;
       }
-      
+
       ++n;
     }
     const e = Error("Unterminated string");
     e.offset = i;
     throw e;
   }
-  
-  
+
+
   function consumeToken(n) {
     if (n < len) {
       const ch = source_code.charAt(n);
@@ -238,7 +240,7 @@ function Tokenizer( source_code ) {
           pushToken('s', ch);
           i += 1;
           return;
-          
+
         case '/':
           const nc = source_code.charAt(n + 1);
           // // production
@@ -262,7 +264,7 @@ function Tokenizer( source_code ) {
         case '"':
           consumeString(n, '\"');
           return;
-        
+
         default:
       }
 
@@ -284,7 +286,7 @@ function Tokenizer( source_code ) {
       }
     }
   }
-  
+
   while (i < len) {
     consumeWhitespace(i);
     consumeToken(i);
