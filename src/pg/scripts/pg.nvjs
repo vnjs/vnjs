@@ -1,0 +1,38 @@
+
+
+// The 'Tom' instance from JavaScript,
+const Tom = require('./tom.js');
+
+
+function start(a, b, c) {
+
+    // Add black screen layer at index 0
+    screen.putElement(constants.blackElementBackground);
+
+    wait;
+
+    // Create an instance of Tom
+    const tom = Tom();
+
+    // Set properties of the element
+    tom.layer = 10;
+    tom.x = 0;
+    tom.y = 0;
+
+    // Put the 'tom' element on screen,
+    screen.putElement(tom);
+
+    // A loop,
+    let i = 0;
+    while (i < 10) {
+
+        wait;
+
+        tom.x = tom.x + 10;
+        i = i + 1;
+
+    }
+
+    system.log('All done! My sir!');
+
+}

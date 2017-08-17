@@ -39,7 +39,10 @@ function $(o) {
     'preserve':-1,
     'evaluate':-1,
     'from':-1,
-    'install':-1
+    'install':-1,
+    'function':-1,
+    'wait':-1,
+    'while':-1
   };
 
 
@@ -63,7 +66,7 @@ function $(o) {
   }
 
 
-  
+
   var isToken = function (tok) {
     return {
       test: function(n) { return n[0] === tok }
@@ -79,13 +82,13 @@ function $(o) {
       test: function(n) { return n[0] === 'i' && n[1] === word }
     }
   };
-  
+
   var STRING_CONST = isToken('sv');
   var IDENT_CONST = isToken('i');
   var WHITESPACE = isToken('ws');
   var NUMBER = isToken('n');
   var COMMENT = isToken('c');
-  
+
   var SEMICOLON = isSymbol(';');
   var COLON =   isSymbol(':');
   var PERIOD =  isSymbol('.');
@@ -105,27 +108,31 @@ function $(o) {
   var EEQ =  isSymbol('===');
   var NEQ =  isSymbol('!=');
   var NNEQ = isSymbol('!==');
-  
+
   var PLUS =  isSymbol('+');
   var MINUS = isSymbol('-');
   var MULT =  isSymbol('*');
   var DIV =   isSymbol('/');
-  
+
   var NOT =    isSymbol('!');
   var ASSIGN = isSymbol('=');
 
-  var CONST =  isWord('const');
-  var TRUE =   isWord('true');
-  var FALSE =  isWord('false');
-  var NULL =   isWord('null');
-  var IF =     isWord('if');
-  var ELSE =   isWord('else');
-  var IMPORT = isWord('import');
-  var FROM =   isWord('from');
-  var GOTO =   isWord('goto');
-  var DEFINE = isWord('define');
-  var AND =    isWord('and');
-  var OR =     isWord('or');
+  var CONST =    isWord('const');
+  var LET =      isWord('let');
+  var TRUE =     isWord('true');
+  var FALSE =    isWord('false');
+  var NULL =     isWord('null');
+  var IF =       isWord('if');
+  var ELSE =     isWord('else');
+  var IMPORT =   isWord('import');
+  var FROM =     isWord('from');
+  var GOTO =     isWord('goto');
+  var DEFINE =   isWord('define');
+  var AND =      isWord('and');
+  var OR =       isWord('or');
+  var FUNCTION = isWord('function');
+  var WAIT =     isWord('wait');
+  var WHILE =    isWord('while');
 
   var VAR =      isWord('var');
   var PRESERVE = isWord('preserve');
@@ -135,11 +142,11 @@ function $(o) {
   var EXPONENT = {
     test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
   };
-  
+
   var INLINECODE = {
     test: function(n) { return n[0] === 'ic' }
   };
-  
+
 
 
   var toLocalIdent = function(d, loc, reject) {
@@ -152,31 +159,21 @@ function $(o) {
   };
 
 
-  var flattenArgumentTree = function(d, loc, reject) {
-    // Flatten argument tree,
-    var map = {};
-    var tree = d[0];
-    function flatten(n) {
-      if (n !== null) {
-        if (n.t === 'ARG_ASSIGN') {
-          if (map[n.l] === void 0) {
-            map[n.l] = n.r;
-          }
-          else {
-            return reject;
-          }
-        }
-        else {
-          // Recurse left and right, and reject if necessary
-          if (flatten(n.l) === reject || flatten(n.r) === reject) return reject;
-        }
+  var toArray = function(v1, v2) {
+    // v1 will always be a single value.
+    // v2 will be an array or undefined
+    return function(d, loc, reject) {
+
+      var val1 = d[v1];
+      const varr = [ { loc:loc, d:val1 } ];
+      if (v2 === undefined) {
+          return varr;
       }
-    }
-    if (flatten(d[0]) === reject) {
-      return reject;
-    }
-    else {
-      return { loc:loc, t:'ARGS', d:map }
+      else {
+        var val2 = d[v2];
+        return varr.concat(d[v2]);
+      }
+
     }
   }
 var grammar = {
@@ -285,96 +282,29 @@ var grammar = {
           return { loc:loc, f:'u-', l:d[1] }
         }
         },
-    {"name": "unaryOp", "symbols": ["valueOrPareth"], "postprocess": id},
+    {"name": "unaryOp", "symbols": ["dotRef"], "postprocess": id},
+    {"name": "dotRef", "symbols": ["dotRef", "_", PERIOD, "_", "funcCall"], "postprocess": function(d, loc) { return {loc:loc, f:'.', l:d[0], r:d[4] } }},
+    {"name": "dotRef", "symbols": ["funcCall"], "postprocess": id},
+    {"name": "funcCall", "symbols": ["valueOrPareth", "_", OPENP, "_", CLOSEP], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'call', name:d[0], params:[] }
+        }
+        },
+    {"name": "funcCall", "symbols": ["valueOrPareth", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'call', name:d[0], params:d[4] }
+        }
+        },
+    {"name": "funcCall", "symbols": ["valueOrPareth"], "postprocess": id},
     {"name": "valueOrPareth", "symbols": ["value"], "postprocess": id},
-    {"name": "valueOrPareth", "symbols": ["ns_local_ident"], "postprocess": id},
+    {"name": "valueOrPareth", "symbols": ["local_ident"], "postprocess": id},
     {"name": "valueOrPareth", "symbols": ["parenthOp"], "postprocess": id},
     {"name": "expression", "symbols": ["binaryOp"], "postprocess": id},
     {"name": "local_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
     {"name": "ns_local_ident", "symbols": ["namespaced_ident"], "postprocess": toLocalIdent},
-    {"name": "import_ident", "symbols": [MULT], "postprocess": function(d) { return '*'; }},
-    {"name": "import_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
-    {"name": "simpleArgAssign", "symbols": ["valueOrPareth"], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
-        }
-        },
-    {"name": "simpleArgAssign", "symbols": ["local_ident", "_", COLON, "_", "valueOrPareth"], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, t:'ARG_ASSIGN', l:d[0], r:d[4] }
-        }
-        },
-    {"name": "argAssign", "symbols": ["expression"], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, t:'ARG_ASSIGN', l:'default', r:d[0] }
-        }
-        },
-    {"name": "argAssign", "symbols": ["local_ident", "_", COLON, "_", "expression"], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, t:'ARG_ASSIGN', l:d[0], r:d[4] }
-        }
-        },
-    {"name": "argSetTree", "symbols": ["simpleArgAssign"], "postprocess": id},
-    {"name": "argSetTree", "symbols": ["simpleArgAssign", "__", "argSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[2] } }},
-    {"name": "commaArgSetTree", "symbols": ["argAssign"], "postprocess": id},
-    {"name": "commaArgSetTree", "symbols": ["argAssign", "_", COMMA, "_", "commaArgSetTree"], "postprocess": function(d, loc) { return { loc:loc, t:'ARGF', l:d[0], r:d[4] } }},
-    {"name": "argSet", "symbols": ["argSetTree"], "postprocess": flattenArgumentTree},
-    {"name": "commaArgSet$ebnf$1$subexpression$1", "symbols": ["_", COMMA]},
-    {"name": "commaArgSet$ebnf$1", "symbols": ["commaArgSet$ebnf$1$subexpression$1"], "postprocess": id},
-    {"name": "commaArgSet$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "commaArgSet", "symbols": ["commaArgSetTree", "commaArgSet$ebnf$1"], "postprocess": flattenArgumentTree},
-    {"name": "block", "symbols": [OPENB, "nestedStatements", "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:d[1] } }},
-    {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, t:'BLOCK', v:[] } }},
-    {"name": "nbFunctionCall", "symbols": ["ns_local_ident"], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
-        }
-        },
-    {"name": "nbFunctionCall", "symbols": ["ns_local_ident", "__", "argSet"], "postprocess": 
-        function(d, loc, reject) {
-          var argSet = d[2];
-          // This rejects grammar where the default argument is a parethizied
-          // expression.
-          var st = Object.keys(argSet.d);
-          if (st.length === 1 && st[0] === 'default' && argSet.d.default.t === '(') {
-            return reject;
-          }
-          return { loc:loc, f:'call', l:d[0], r:argSet }
-        }
-        },
-    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
-        }
-        },
-    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', l:d[0], r:d[4] }
-        }
-        },
-    {"name": "mutatorFunctionCall", "symbols": ["local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', l:d[0], r:{ loc:loc, t:'ARGS', d:{} } }
-        }
-        },
-    {"name": "mutatorFunctionCall", "symbols": ["local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', l:d[0], r:d[4] }
-        }
-        },
-    {"name": "baseMutatorCall", "symbols": ["ns_local_ident", "_", PERIOD, "_", "mutatorFunctionCall"], "postprocess": function(d, loc) { return { loc:loc, f:'refcall', l:d[0], r:d[4] } }},
+    {"name": "block", "symbols": [OPENB, "_", "nestedStatements", "_", CLOSEB], "postprocess": nth(2)},
+    {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return [] }},
     {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
-    {"name": "constRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "constRightSide", "symbols": ["functionCall", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "constRightSide$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
-    {"name": "constRightSide$ebnf$1", "symbols": ["constRightSide$ebnf$1$subexpression$1"], "postprocess": id},
-    {"name": "constRightSide$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "constRightSide", "symbols": ["inlineCode", "constRightSide$ebnf$1"], "postprocess": nth(0)},
-    {"name": "installtarget", "symbols": ["stringval", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "installtarget$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
-    {"name": "installtarget$ebnf$1", "symbols": ["installtarget$ebnf$1$subexpression$1"], "postprocess": id},
-    {"name": "installtarget$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "installtarget", "symbols": ["inlineCode", "installtarget$ebnf$1"], "postprocess": nth(0)},
     {"name": "assignment", "symbols": ["ns_local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
@@ -408,58 +338,63 @@ var grammar = {
     {"name": "reservedOp", "symbols": [GOTO], "postprocess": id},
     {"name": "reservedOp", "symbols": [EVALUATE], "postprocess": id},
     {"name": "reservedOp", "symbols": [PRESERVE], "postprocess": id},
-    {"name": "langstatement", "symbols": ["reservedOp", "_", "ns_local_ident", "_", SEMICOLON], "postprocess": 
+    {"name": "waitStatement", "symbols": [WAIT, "_", SEMICOLON], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:d[0][1], l:d[2] }
+          return { loc:loc, f:'wait' };
         }
         },
-    {"name": "importstatement", "symbols": [IMPORT, "_", "import_ident", "_", FROM, "_", "stringval", "_", SEMICOLON], "postprocess": 
+    {"name": "whileStatement", "symbols": [WHILE, "_", OPENP, "_", "expression", "_", CLOSEP, "_", "block"], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'import', l:d[2], r:d[6] }
+          return { loc:loc, f:'while', expr:d[4], block:d[8] };
         }
         },
-    {"name": "installstatement", "symbols": [INSTALL, "_", "installtarget"], "postprocess": 
+    {"name": "commaArgSet", "symbols": ["expression"], "postprocess": toArray(0)},
+    {"name": "commaArgSet", "symbols": ["expression", "_", COMMA, "_", "commaArgSet"], "postprocess": toArray(0, 4)},
+    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'install', l:d[2] }
+          return { loc:loc, f:'call', name:d[0], params:[] }
         }
         },
-    {"name": "conststatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "constRightSide"], "postprocess": 
+    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'const', l:d[2], r:d[6] }
+          return { loc:loc, f:'call', name:d[0], params:d[4] }
         }
         },
-    {"name": "definestatement", "symbols": [DEFINE, "_", "ns_local_ident", "_", "block"], "postprocess": 
+    {"name": "expressionStatement", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "nestedStatement", "symbols": ["assignment"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["waitStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["letStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
+    {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(0)},
+    {"name": "nestedStatements", "symbols": ["nestedStatement", "_", "nestedStatements"], "postprocess": toArray(0, 2)},
+    {"name": "functionParams", "symbols": ["local_ident"], "postprocess": toArray(0)},
+    {"name": "functionParams", "symbols": ["local_ident", "_", COMMA, "_", "functionParams"], "postprocess": toArray(0, 4)},
+    {"name": "functionParamsB", "symbols": [OPENP, "_", "functionParams", "_", CLOSEP], "postprocess": nth(2)},
+    {"name": "functionParamsB", "symbols": [OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return []; }},
+    {"name": "functionStatement", "symbols": [FUNCTION, "_", "local_ident", "_", "functionParamsB", "_", "block"], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'define', l:d[2], r:d[4] }
+          return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
         }
         },
-    {"name": "nestedStatement", "symbols": ["assignment"], "postprocess": nth(0)},
-    {"name": "nestedStatement", "symbols": ["functionCall", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "nestedStatement", "symbols": ["nbFunctionCall", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "nestedStatement", "symbols": ["ifstatement"], "postprocess": nth(0)},
-    {"name": "nestedStatement", "symbols": ["langstatement"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["installstatement"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["conststatement"], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["baseMutatorCall", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "baseStatement", "symbols": ["definestatement"], "postprocess": nth(0)},
-    {"name": "nestedStatements$ebnf$1$subexpression$1", "symbols": ["_", "nestedStatement"]},
-    {"name": "nestedStatements$ebnf$1", "symbols": ["nestedStatements$ebnf$1$subexpression$1"]},
-    {"name": "nestedStatements$ebnf$1$subexpression$2", "symbols": ["_", "nestedStatement"]},
-    {"name": "nestedStatements$ebnf$1", "symbols": ["nestedStatements$ebnf$1", "nestedStatements$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "nestedStatements", "symbols": ["nestedStatements$ebnf$1"], "postprocess": toList(0, 1)},
+    {"name": "assignRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "letStatement", "symbols": [LET, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'let', var:d[2], expr:d[4] }
+        }
+        },
+    {"name": "constStatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
+        function(d, loc) {
+          return { loc:loc, f:'const', var:d[2], expr:d[6] }
+        }
+        },
+    {"name": "baseStatement", "symbols": ["constStatement"], "postprocess": nth(0)},
+    {"name": "baseStatement", "symbols": ["functionStatement"], "postprocess": nth(0)},
     {"name": "baseStatements$ebnf$1", "symbols": []},
-    {"name": "baseStatements$ebnf$1$subexpression$1", "symbols": ["_", "importstatement"]},
+    {"name": "baseStatements$ebnf$1$subexpression$1", "symbols": ["_", "baseStatement"]},
     {"name": "baseStatements$ebnf$1", "symbols": ["baseStatements$ebnf$1", "baseStatements$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "baseStatements$ebnf$2", "symbols": []},
-    {"name": "baseStatements$ebnf$2$subexpression$1", "symbols": ["_", "baseStatement"]},
-    {"name": "baseStatements$ebnf$2", "symbols": ["baseStatements$ebnf$2", "baseStatements$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "baseStatements", "symbols": ["baseStatements$ebnf$1", "baseStatements$ebnf$2"], "postprocess": 
-        function(d) {
-          var import_list = toList(0, 1)(d);
-          var rest_list = toList(1, 1)(d);
-          return import_list.concat(rest_list);
-        }
-        }
+    {"name": "baseStatements", "symbols": ["baseStatements$ebnf$1"], "postprocess": toList(0, 1)}
 ]
   , ParserStart: "vnjs"
 }

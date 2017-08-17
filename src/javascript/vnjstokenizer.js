@@ -45,7 +45,7 @@ function Tokenizer( source_code ) {
 
   function pushToken(type, content) {
     tokens.push( [ type, content, i ] );
-  };
+  }
 
 
   function consumeWhitespace(n) {
@@ -167,8 +167,10 @@ function Tokenizer( source_code ) {
         }
       }
       else if (ch === '\n' || ch === '\r') {
-        // Oops, can't tokenize,
-        break;
+        if (terminating_char !== '`') {
+          // Oops, can't tokenize,
+          break;
+        }
       }
       else if (ch === terminating_char) {
         ++n;
@@ -241,7 +243,7 @@ function Tokenizer( source_code ) {
           i += 1;
           return;
 
-        case '/':
+        case '/': {
           const nc = source_code.charAt(n + 1);
           // // production
           if (nc === '/') {
@@ -257,12 +259,16 @@ function Tokenizer( source_code ) {
           pushToken('s', ch);
           i += 1;
           return;
+        }
 
         case '\'':
           consumeString(n, '\'');
           return;
         case '"':
-          consumeString(n, '\"');
+          consumeString(n, '"');
+          return;
+        case '`':
+          consumeString(n, '`');
           return;
 
         default:
