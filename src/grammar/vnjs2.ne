@@ -7,156 +7,165 @@
 
 
 @{%
-  var KEYWORDS = {
-    'true':-1,
-    'false':-1,
-    'null':-1,
-    'undefined':-1,
-    'import':-1,
-    'const':-1,
-    'if':-1,
-    'then':-1,
-    'else':-1,
-    'let':-1,
-    'var':-1,
-    'define':-1,
-    'and':-1,
-    'or':-1,
-    'goto':-1,
-    'preserve':-1,
-    'evaluate':-1,
-    'from':-1,
-    'install':-1,
-    'function':-1,
-    'while':-1
-  };
-%}
+    var KEYWORDS = {
+        'true':-1,
+        'false':-1,
+        'null':-1,
+        'undefined':-1,
+        'import':-1,
+        'const':-1,
+        'if':-1,
+        'then':-1,
+        'else':-1,
+        'let':-1,
+        'var':-1,
+        'define':-1,
+        'and':-1,
+        'or':-1,
+        'goto':-1,
+        'preserve':-1,
+        'evaluate':-1,
+        'from':-1,
+        'install':-1,
+        'function':-1,
+        'while':-1
+    };
 
-@{%
-  function toList(n, m) {
-    return function(d) {
-      var s = [];
-      var f = d[n];
-      if (f) {
-        for (var i = 0; i < f.length; ++i) {
-          var st = f[i][m];
-          if (st !== null) {
-            s.push(st);
-          }
+    function toList(n, m) {
+        return function(d) {
+            var s = [];
+            var f = d[n];
+            if (f) {
+                for (var i = 0; i < f.length; ++i) {
+                    var st = f[i][m];
+                    if (st !== null) {
+                        s.push(st);
+                    }
+                }
+            }
+            return s;
         }
-      }
-      return s;
     }
-  }
-  function toNull(d) {
-    return null;
-  }
+
+    // Concatinates a single value (v1) with an array (v2) and returns a new
+    // array.
+    function toArray(v1, v2) {
+        // v1 will always be a single value.
+        // v2 will be an array or undefined
+        return function(d, loc, reject) {
+
+            var val1 = d[v1];
+            const varr = [ val1 ];
+            if (v2 === undefined) {
+                return varr;
+            }
+            else {
+                var val2 = d[v2];
+                return varr.concat(d[v2]);
+            }
+
+        }
+    }
+
+    function toNull(d) {
+        return null;
+    }
+
+    var isToken = function (tok) {
+        return {
+            test: function(n) { return n[0] === tok }
+        }
+    };
+    var isSymbol = function (sym) {
+        return {
+            test: function(n) { return n[0] === 's' && n[1] === sym }
+        }
+    };
+    var isWord = function (word) {
+        return {
+            test: function(n) { return n[0] === 'i' && n[1] === word }
+        }
+    };
+
+    /* TOKENS START */
+
+    var STRING_CONST = isToken('sv');
+    var IDENT_CONST = isToken('i');
+    var WHITESPACE = isToken('ws');
+    var NUMBER = isToken('n');
+    var COMMENT = isToken('c');
+
+    var SEMICOLON = isSymbol(';');
+    var COLON =   isSymbol(':');
+    var PERIOD =  isSymbol('.');
+    var COMMA =   isSymbol(',');
+    var OPENP =   isSymbol('(');
+    var CLOSEP =  isSymbol(')');
+    var OPENB =   isSymbol('{');
+    var CLOSEB =  isSymbol('}');
+    var PERCENT = isSymbol('$');
+    var ORSYM =   isSymbol('||');
+    var ANDSYM =  isSymbol('&&');
+    var LT =   isSymbol('<');
+    var GT =   isSymbol('>');
+    var LTE =  isSymbol('<=');
+    var GTE =  isSymbol('>=');
+    var EQ =   isSymbol('==');
+    var EEQ =  isSymbol('===');
+    var NEQ =  isSymbol('!=');
+    var NNEQ = isSymbol('!==');
+
+    var PLUS =  isSymbol('+');
+    var MINUS = isSymbol('-');
+    var MULT =  isSymbol('*');
+    var DIV =   isSymbol('/');
+
+    var PLUSEQ =  isSymbol('+=');
+    var MINUSEQ = isSymbol('-=');
+    var MULTEQ =  isSymbol('*=');
+    var DIVEQ =   isSymbol('/=');
+
+    var PLUSPLUS   = isSymbol('++');
+    var MINUSMINUS = isSymbol('--');
+
+    var NOT =    isSymbol('!');
+    var ASSIGN = isSymbol('=');
+
+    var CONST =     isWord('const');
+    var LET =       isWord('let');
+    var TRUE =      isWord('true');
+    var FALSE =     isWord('false');
+    var NULL =      isWord('null');
+    var UNDEFINED = isWord('undefined');
+    var IF =        isWord('if');
+    var ELSE =      isWord('else');
+    var IMPORT =    isWord('import');
+    var FROM =      isWord('from');
+    var GOTO =      isWord('goto');
+    var DEFINE =    isWord('define');
+    var AND =       isWord('and');
+    var OR =        isWord('or');
+    var FUNCTION =  isWord('function');
+    var WHILE =     isWord('while');
+
+    var VAR =      isWord('var');
+    var PRESERVE = isWord('preserve');
+    var EVALUATE = isWord('evaluate');
+    var INSTALL  = isWord('install');
+
+    var EXPONENT = {
+        test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
+    };
+
+    var INLINECODE = {
+        test: function(n) { return n[0] === 'ic' }
+    };
+
 %}
 
 vnjs -> baseStatements _ {% nth(0) %}
 
 general_expression -> _ expression _ {% nth(1) %}
-
-
-
-
-##### TOKENS START
-
-
-@{%
-
-  var isToken = function (tok) {
-    return {
-      test: function(n) { return n[0] === tok }
-    }
-  };
-  var isSymbol = function (sym) {
-    return {
-      test: function(n) { return n[0] === 's' && n[1] === sym }
-    }
-  };
-  var isWord = function (word) {
-    return {
-      test: function(n) { return n[0] === 'i' && n[1] === word }
-    }
-  };
-
-  var STRING_CONST = isToken('sv');
-  var IDENT_CONST = isToken('i');
-  var WHITESPACE = isToken('ws');
-  var NUMBER = isToken('n');
-  var COMMENT = isToken('c');
-
-  var SEMICOLON = isSymbol(';');
-  var COLON =   isSymbol(':');
-  var PERIOD =  isSymbol('.');
-  var COMMA =   isSymbol(',');
-  var OPENP =   isSymbol('(');
-  var CLOSEP =  isSymbol(')');
-  var OPENB =   isSymbol('{');
-  var CLOSEB =  isSymbol('}');
-  var PERCENT = isSymbol('$');
-  var ORSYM =   isSymbol('||');
-  var ANDSYM =  isSymbol('&&');
-  var LT =   isSymbol('<');
-  var GT =   isSymbol('>');
-  var LTE =  isSymbol('<=');
-  var GTE =  isSymbol('>=');
-  var EQ =   isSymbol('==');
-  var EEQ =  isSymbol('===');
-  var NEQ =  isSymbol('!=');
-  var NNEQ = isSymbol('!==');
-
-  var PLUS =  isSymbol('+');
-  var MINUS = isSymbol('-');
-  var MULT =  isSymbol('*');
-  var DIV =   isSymbol('/');
-
-  var PLUSEQ =  isSymbol('+=');
-  var MINUSEQ = isSymbol('-=');
-  var MULTEQ =  isSymbol('*=');
-  var DIVEQ =   isSymbol('/=');
-
-  var PLUSPLUS   = isSymbol('++');
-  var MINUSMINUS = isSymbol('--');
-
-  var NOT =    isSymbol('!');
-  var ASSIGN = isSymbol('=');
-
-  var CONST =     isWord('const');
-  var LET =       isWord('let');
-  var TRUE =      isWord('true');
-  var FALSE =     isWord('false');
-  var NULL =      isWord('null');
-  var UNDEFINED = isWord('undefined');
-  var IF =        isWord('if');
-  var ELSE =      isWord('else');
-  var IMPORT =    isWord('import');
-  var FROM =      isWord('from');
-  var GOTO =      isWord('goto');
-  var DEFINE =    isWord('define');
-  var AND =       isWord('and');
-  var OR =        isWord('or');
-  var FUNCTION =  isWord('function');
-  var WHILE =     isWord('while');
-
-  var VAR =      isWord('var');
-  var PRESERVE = isWord('preserve');
-  var EVALUATE = isWord('evaluate');
-  var INSTALL  = isWord('install');
-
-  var EXPONENT = {
-    test: function(n) { return n[0] === 'i' && (n[1] === 'E' || n[1] === 'e') }
-  };
-
-  var INLINECODE = {
-    test: function(n) { return n[0] === 'ic' }
-  };
-
-%}
-
-
-
 
 
 # Whitespace: `_` is optional, `__` is mandatory.
@@ -169,29 +178,30 @@ stringval -> %STRING_CONST {% function(d, loc) { return { loc:loc, f:'STRING', v
 plusorminus -> %MINUS {% function(d) { return '-' } %}
              | %PLUS  {% function(d) { return '+' } %}
 
-number -> plusorminus:? %NUMBER (%PERIOD %NUMBER):? (%EXPONENT plusorminus:? %NUMBER):? {%
-  function(d, loc) {
-    return {
-      loc:loc,
-      f:'NUMBER',
-      v:(d[0] || "") +
-         d[1][1] +
-        (d[2] ? "." + d[2][1][1] : "") +
-        (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
+number -> plusorminus:? %NUMBER (%PERIOD %NUMBER):? (%EXPONENT plusorminus:? %NUMBER):?
+{%
+    function(d, loc) {
+        return {
+            loc:loc,
+            f:'NUMBER',
+            v:(d[0] || "") +
+            d[1][1] +
+            (d[2] ? "." + d[2][1][1] : "") +
+            (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
+        }
     }
-  }
 %}
-        | plusorminus:? %PERIOD %NUMBER (%EXPONENT plusorminus:? %NUMBER):? {%
-  function(d, loc) {
-    return {
-      loc:loc,
-      f:'NUMBER',
-      v:(d[0] || "") +
-         "." + d[2][1] +
-        (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
+        | plusorminus:? %PERIOD %NUMBER (%EXPONENT plusorminus:? %NUMBER):?
+{%
+    function(d, loc) {
+        return {
+            loc:loc,
+            f:'NUMBER',
+            v:(d[0] || "") +
+            "." + d[2][1] +
+            (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
+        }
     }
-  }
-
 %}
 
 
@@ -202,7 +212,7 @@ nullval -> %NULL           {% function(d, loc) { return { loc:loc, f:'NULL', v:n
 
 undefinedval -> %UNDEFINED {% function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } } %}
 
-identifier -> %IDENT_CONST             {% function(d) { return d[0][1] } %}
+identifier -> %IDENT_CONST {% function(d) { return d[0][1] } %}
 
 
 ##### TOKENS END
@@ -219,14 +229,12 @@ AND_TOKS -> %ANDSYM {% toNull %}
 
 
 @{%
-var stdF = function(ftype) {
-  return function(d, loc, reject) {
-    return { loc:loc, f:ftype, l:d[0], r:d[4] };
-  }
-}
+    function stdF(ftype) {
+        return function(d, loc, reject) {
+            return { loc:loc, f:ftype, l:d[0], r:d[4] };
+        }
+    }
 %}
-
-
 
 
 parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'(', l:d[2] } } %}
@@ -268,18 +276,18 @@ unaryOp -> %NOT _ unaryOp       {% function(d, loc) { return { loc:loc, f:'!u', 
          | %PLUS __ unaryOp     {% function(d, loc) { return { loc:loc, f:'+u', l:d[2] } } %}
          | %MINUS unaryOp
 {%
-  function(d, loc, reject) {
-    // Reject if there's a number immediately after
-    if (d[1].f === 'NUMBER') return reject;
-    return { loc:loc, f:'-u', l:d[1] }
-  }
+    function(d, loc, reject) {
+        // Reject if there's a number immediately after
+        if (d[1].f === 'NUMBER') return reject;
+        return { loc:loc, f:'-u', l:d[1] }
+    }
 %}
          | %PLUS unaryOp
 {%
     function(d, loc, reject) {
-      // Reject if there's a number immediately after
-      if (d[1].f === 'NUMBER') return reject;
-      return { loc:loc, f:'+u', l:d[1] }
+        // Reject if there's a number immediately after
+        if (d[1].f === 'NUMBER') return reject;
+        return { loc:loc, f:'+u', l:d[1] }
     }
 %}
          | prefPostOp {% id %}
@@ -332,14 +340,14 @@ expression -> binaryOp {% id %}
 # ---------------
 
 @{%
-  var toLocalIdent = function(d, loc, reject) {
-    var str = d[0];
-    // Reject keywords,
-    if ( KEYWORDS[str] === -1 ) {
-      return reject;
-    }
-    return { loc:loc, f:'IDENT', v:str };
-  };
+    var toLocalIdent = function(d, loc, reject) {
+        var str = d[0];
+        // Reject keywords,
+        if ( KEYWORDS[str] === -1 ) {
+            return reject;
+        }
+        return { loc:loc, f:'IDENT', v:str };
+    };
 %}
 
 local_ident -> identifier           {% toLocalIdent %}
@@ -364,33 +372,37 @@ assignRef -> dotRef      {% id %}
            | local_ident {% id %}
 
 
-assignment -> assignRef _ %ASSIGN _ expression _ %SEMICOLON {%
-  function(d, loc) {
-    return { loc:loc, f:'=', l:d[0], r:d[4] }
-  }
-%}
-
-elseblock -> %ELSE _ block {%
-  function(d, loc) {
-    return { loc:loc, f:'elseb', block:d[2] }
-  }
-%}
-
-elseifblock -> %ELSE _ %IF _ %OPENP _ expression _ %CLOSEP _ block {%
-  function(d, loc) {
-    return { loc:loc, f:'elseb', expr:d[6], block:d[10] }
-  }
-%}
-
-ifStatement -> %IF _ %OPENP _ expression _ %CLOSEP _ block ( _ elseifblock ):* ( _ elseblock ):? {%
-  function(d, loc) {
-    var s = [ { loc:loc, f:'ifb', expr:d[4], block:d[8] } ];
-    var s = s.concat(toList(9, 1)(d));
-    if (d[10]) {
-      s.push(d[10][1]);
+assignment -> assignRef _ %ASSIGN _ expression _ %SEMICOLON
+{%
+    function(d, loc) {
+        return { loc:loc, f:'=', l:d[0], r:d[4] }
     }
-    return { loc:loc, f:'if', bc:s }
-  }
+%}
+
+elseblock -> %ELSE _ block
+{%
+    function(d, loc) {
+        return { loc:loc, f:'elseb', block:d[2] }
+    }
+%}
+
+elseifblock -> %ELSE _ %IF _ %OPENP _ expression _ %CLOSEP _ block
+{%
+    function(d, loc) {
+        return { loc:loc, f:'elseb', expr:d[6], block:d[10] }
+    }
+%}
+
+ifStatement -> %IF _ %OPENP _ expression _ %CLOSEP _ block ( _ elseifblock ):* ( _ elseblock ):?
+{%
+    function(d, loc) {
+        var s = [ { loc:loc, f:'ifb', expr:d[4], block:d[8] } ];
+        var s = s.concat(toList(9, 1)(d));
+        if (d[10]) {
+            s.push(d[10][1]);
+        }
+        return { loc:loc, f:'if', bc:s }
+    }
 %}
 
 
@@ -400,51 +412,22 @@ reservedOp -> %GOTO {% id %}
 
 
 
-
-
-
-
-@{%
-  var toArray = function(raw, v1, v2) {
-    // v1 will always be a single value.
-    // v2 will be an array or undefined
-    return function(d, loc, reject) {
-
-      var val1 = d[v1];
-      const varr = raw ? [ val1 ] : [ { loc:loc, d:val1 } ];
-      if (v2 === undefined) {
-          return varr;
-      }
-      else {
-        var val2 = d[v2];
-        return varr.concat(d[v2]);
-      }
-
+whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block
+{%
+    function(d, loc) {
+        return { loc:loc, f:'while', expr:d[4], block:d[8] };
     }
-  }
-%}
-
-
-
-whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block {%
-  function(d, loc) {
-    return { loc:loc, f:'while', expr:d[4], block:d[8] };
-  }
 %}
 
 
 
 
-commaArgSet -> expression {% toArray(true, 0) %}
-             | expression _ %COMMA _ commaArgSet {% toArray(true, 0, 4) %}
-
+commaArgSet -> expression {% toArray(0) %}
+             | expression _ %COMMA _ commaArgSet {% toArray(0, 4) %}
 
 
 
 expressionStatement -> expression _ %SEMICOLON {% nth(0) %}
-
-
-
 
 
 
@@ -456,14 +439,14 @@ nestedStatement ->
                  | ifStatement {% id %}
                  | expressionStatement {% id %}
 
-nestedStatements -> nestedStatement {% toArray(true, 0) %}
+nestedStatements -> nestedStatement {% toArray(0) %}
                   | nestedStatement _ nestedStatements
-                                {% toArray(true, 0, 2) %}
+                                {% toArray(0, 2) %}
 
 
-functionParams -> local_ident {% toArray(true, 0) %}
+functionParams -> local_ident {% toArray(0) %}
                 | local_ident _ %COMMA _ functionParams
-                        {% toArray(true, 0, 4) %}
+                        {% toArray(0, 4) %}
 
 functionParamsB -> %OPENP _ functionParams _ %CLOSEP {% nth(2) %}
                  | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
@@ -473,9 +456,9 @@ functionStatement -> %FUNCTION _ local_ident
                      _ functionParamsB
                      _ block
 {%
-  function(d, loc) {
-    return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
-  }
+    function(d, loc) {
+        return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
+    }
 %}
 
 
@@ -483,16 +466,16 @@ assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}
 
 
 letStatement -> %LET _ local_ident _ %ASSIGN _ assignRightSide {%
-  function(d, loc) {
-    return { loc:loc, f:'let', var:d[2], expr:d[6] }
-  }
+    function(d, loc) {
+        return { loc:loc, f:'let', var:d[2], expr:d[6] }
+    }
 %}
 
 
 constStatement -> %CONST _ local_ident _ %ASSIGN _ assignRightSide {%
-  function(d, loc) {
-    return { loc:loc, f:'const', var:d[2], expr:d[6] }
-  }
+    function(d, loc) {
+        return { loc:loc, f:'const', var:d[2], expr:d[6] }
+    }
 %}
 
 
