@@ -202,9 +202,6 @@ function Tokenizer( source_code ) {
         case ']':
         case ':':
         case ';':
-        case '+':
-        case '-':
-        case '*':
         case '$':
         case '^':
         case '~':
@@ -214,6 +211,41 @@ function Tokenizer( source_code ) {
           i += 1;
           return;
 
+        case '+': {
+          const nc = source_code.charAt(n + 1);
+          if (nc === '+') {
+            pushToken('s', '++');
+            i += 2;
+            return;
+          }
+          else if (nc === '=') {
+            pushToken('s', '+=');
+            i += 2;
+            return;
+          }
+          pushToken('s', ch);
+          i += 1;
+          return;
+        }
+        case '-': {
+          const nc = source_code.charAt(n + 1);
+          if (nc === '-') {
+            pushToken('s', '--');
+            i += 2;
+            return;
+          }
+          else if (nc === '=') {
+            pushToken('s', '-=');
+            i += 2;
+            return;
+          }
+          pushToken('s', ch);
+          i += 1;
+          return;
+        }
+        case '*':
+          i += lookupToken('*=');
+          return;
         case '>':
           i += lookupToken('>=');
           return;
@@ -253,6 +285,12 @@ function Tokenizer( source_code ) {
           // /* production
           else if (nc === '*') {
             consumeBlockComment(n);
+            return;
+          }
+          // /= production
+          else if (nc === '=') {
+            pushToken('s', '/=');
+            i += 2;
             return;
           }
           // Consume '/'

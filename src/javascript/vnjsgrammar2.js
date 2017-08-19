@@ -25,6 +25,7 @@ function $(o) {
     'true':-1,
     'false':-1,
     'null':-1,
+    'undefined':-1,
     'import':-1,
     'const':-1,
     'if':-1,
@@ -41,7 +42,6 @@ function $(o) {
     'from':-1,
     'install':-1,
     'function':-1,
-    'wait':-1,
     'while':-1
   };
 
@@ -114,25 +114,33 @@ function $(o) {
   var MULT =  isSymbol('*');
   var DIV =   isSymbol('/');
 
+  var PLUSEQ =  isSymbol('+=');
+  var MINUSEQ = isSymbol('-=');
+  var MULTEQ =  isSymbol('*=');
+  var DIVEQ =   isSymbol('/=');
+
+  var PLUSPLUS   = isSymbol('++');
+  var MINUSMINUS = isSymbol('--');
+
   var NOT =    isSymbol('!');
   var ASSIGN = isSymbol('=');
 
-  var CONST =    isWord('const');
-  var LET =      isWord('let');
-  var TRUE =     isWord('true');
-  var FALSE =    isWord('false');
-  var NULL =     isWord('null');
-  var IF =       isWord('if');
-  var ELSE =     isWord('else');
-  var IMPORT =   isWord('import');
-  var FROM =     isWord('from');
-  var GOTO =     isWord('goto');
-  var DEFINE =   isWord('define');
-  var AND =      isWord('and');
-  var OR =       isWord('or');
-  var FUNCTION = isWord('function');
-  var WAIT =     isWord('wait');
-  var WHILE =    isWord('while');
+  var CONST =     isWord('const');
+  var LET =       isWord('let');
+  var TRUE =      isWord('true');
+  var FALSE =     isWord('false');
+  var NULL =      isWord('null');
+  var UNDEFINED = isWord('undefined');
+  var IF =        isWord('if');
+  var ELSE =      isWord('else');
+  var IMPORT =    isWord('import');
+  var FROM =      isWord('from');
+  var GOTO =      isWord('goto');
+  var DEFINE =    isWord('define');
+  var AND =       isWord('and');
+  var OR =        isWord('or');
+  var FUNCTION =  isWord('function');
+  var WHILE =     isWord('while');
 
   var VAR =      isWord('var');
   var PRESERVE = isWord('preserve');
@@ -149,23 +157,30 @@ function $(o) {
 
 
 
+var stdF = function(ftype) {
+  return function(d, loc, reject) {
+    return { loc:loc, f:ftype, l:d[0], r:d[4] };
+  }
+}
+
+
   var toLocalIdent = function(d, loc, reject) {
     var str = d[0];
     // Reject keywords,
     if ( KEYWORDS[str] === -1 ) {
       return reject;
     }
-    return str;
+    return { loc:loc, f:'IDENT', v:str };
   };
 
 
-  var toArray = function(v1, v2) {
+  var toArray = function(raw, v1, v2) {
     // v1 will always be a single value.
     // v2 will be an array or undefined
     return function(d, loc, reject) {
 
       var val1 = d[v1];
-      const varr = [ { loc:loc, d:val1 } ];
+      const varr = raw ? [ val1 ] : [ { loc:loc, d:val1 } ];
       if (v2 === undefined) {
           return varr;
       }
@@ -193,7 +208,7 @@ var grammar = {
     {"name": "__$ebnf$1$subexpression$2", "symbols": [COMMENT]},
     {"name": "__$ebnf$1", "symbols": ["__$ebnf$1", "__$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "__", "symbols": ["__$ebnf$1"], "postprocess": toNull},
-    {"name": "stringval", "symbols": [STRING_CONST], "postprocess": function(d, loc) { return { loc:loc, t:'STRING', v:d[0][1] } }},
+    {"name": "stringval", "symbols": [STRING_CONST], "postprocess": function(d, loc) { return { loc:loc, f:'STRING', v:d[0][1] } }},
     {"name": "plusorminus", "symbols": [MINUS], "postprocess": function(d) { return '-' }},
     {"name": "plusorminus", "symbols": [PLUS], "postprocess": function(d) { return '+' }},
     {"name": "number$ebnf$1", "symbols": ["plusorminus"], "postprocess": id},
@@ -210,7 +225,7 @@ var grammar = {
         function(d, loc) {
           return {
             loc:loc,
-            t:'NUMBER',
+            f:'NUMBER',
             v:(d[0] || "") +
                d[1][1] +
               (d[2] ? "." + d[2][1][1] : "") +
@@ -229,7 +244,7 @@ var grammar = {
         function(d, loc) {
           return {
             loc:loc,
-            t:'NUMBER',
+            f:'NUMBER',
             v:(d[0] || "") +
                "." + d[2][1] +
               (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
@@ -237,140 +252,130 @@ var grammar = {
         }
         
         },
-    {"name": "boolean", "symbols": [TRUE], "postprocess": function(d, loc) { return { loc:loc, t:'BOOLEAN', v:true } }},
-    {"name": "boolean", "symbols": [FALSE], "postprocess": function(d, loc) { return { loc:loc, t:'BOOLEAN', v:false } }},
-    {"name": "nullval", "symbols": [NULL], "postprocess": function(d, loc) { return { loc:loc, t:'NULL', v:null } }},
+    {"name": "boolean", "symbols": [TRUE], "postprocess": function(d, loc) { return { loc:loc, f:'BOOLEAN', v:true } }},
+    {"name": "boolean", "symbols": [FALSE], "postprocess": function(d, loc) { return { loc:loc, f:'BOOLEAN', v:false } }},
+    {"name": "nullval", "symbols": [NULL], "postprocess": function(d, loc) { return { loc:loc, f:'NULL', v:null } }},
+    {"name": "undefinedval", "symbols": [UNDEFINED], "postprocess": function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } }},
     {"name": "identifier", "symbols": [IDENT_CONST], "postprocess": function(d) { return d[0][1] }},
-    {"name": "namespaced_ident", "symbols": ["identifier"], "postprocess": function(d) { return d[0] }},
-    {"name": "namespaced_ident", "symbols": ["identifier", "_", PERIOD, "_", "namespaced_ident"], "postprocess": function(d) { return d[0] + '#' + d[4] }},
     {"name": "comment", "symbols": [COMMENT], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [ORSYM], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [OR], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [ANDSYM], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [AND], "postprocess": toNull},
-    {"name": "value", "symbols": ["boolean"], "postprocess": id},
-    {"name": "value", "symbols": ["number"], "postprocess": id},
-    {"name": "value", "symbols": ["stringval"], "postprocess": id},
-    {"name": "value", "symbols": ["nullval"], "postprocess": id},
-    {"name": "parenthOp", "symbols": [OPENP, "_", "binaryOp", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, t:'(', v:d[2] } }},
+    {"name": "parenthOp", "symbols": [OPENP, "_", "binaryOp", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'(', l:d[2] } }},
     {"name": "binaryOp", "symbols": ["orOp"], "postprocess": id},
-    {"name": "orOp", "symbols": ["orOp", "_", "OR_TOKS", "_", "andOp"], "postprocess": function(d, loc) { return { loc:loc, f:'||', l:d[0], r:d[4] } }},
+    {"name": "orOp", "symbols": ["orOp", "_", "OR_TOKS", "_", "andOp"], "postprocess": stdF('||')},
     {"name": "orOp", "symbols": ["andOp"], "postprocess": id},
-    {"name": "andOp", "symbols": ["andOp", "_", "AND_TOKS", "_", "compareOp"], "postprocess": function(d, loc) { return { loc:loc, f:'&&', l:d[0], r:d[4] } }},
+    {"name": "andOp", "symbols": ["andOp", "_", "AND_TOKS", "_", "compareOp"], "postprocess": stdF('&&')},
     {"name": "andOp", "symbols": ["compareOp"], "postprocess": id},
-    {"name": "compareOp", "symbols": ["compareOp", "_", LT, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'<', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", GT, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'>', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", LTE, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'<=', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", GTE, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'>=', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", EQ, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'==', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", EEQ, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'===', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", NEQ, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'!=', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["compareOp", "_", NNEQ, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'!==', l:d[0], r:d[4] } }},
-    {"name": "compareOp", "symbols": ["additionOp"], "postprocess": id},
-    {"name": "additionOp", "symbols": ["additionOp", "_", PLUS, "_", "multOp"], "postprocess": function(d, loc) { return { loc:loc, f:'+', l:d[0], r:d[4] } }},
-    {"name": "additionOp", "symbols": ["additionOp", "_", MINUS, "_", "multOp"], "postprocess": function(d, loc) { return { loc:loc, f:'-', l:d[0], r:d[4] } }},
-    {"name": "additionOp", "symbols": ["multOp"], "postprocess": id},
-    {"name": "multOp", "symbols": ["multOp", "_", MULT, "_", "unaryOp"], "postprocess": function(d, loc) { return { loc:loc, f:'*', l:d[0], r:d[4] } }},
-    {"name": "multOp", "symbols": ["multOp", "_", DIV, "_", "unaryOp"], "postprocess": function(d, loc) { return { loc:loc, f:'/', l:d[0], r:d[4] } }},
-    {"name": "multOp", "symbols": ["unaryOp"], "postprocess": id},
-    {"name": "unaryOp", "symbols": [NOT, "_", "valueOrPareth"], "postprocess": function(d, loc) { return { loc:loc, f:'u!', l:d[2] } }},
-    {"name": "unaryOp", "symbols": [MINUS, "__", "valueOrPareth"], "postprocess": function(d, loc) { return { loc:loc, f:'u-', l:d[2] } }},
-    {"name": "unaryOp", "symbols": [MINUS, "valueOrPareth"], "postprocess": 
+    {"name": "compareOp", "symbols": ["compareOp", "_", LT, "_", "manipOp"], "postprocess": stdF('<')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", GT, "_", "manipOp"], "postprocess": stdF('>')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", LTE, "_", "manipOp"], "postprocess": stdF('<=')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", GTE, "_", "manipOp"], "postprocess": stdF('>=')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", EQ, "_", "manipOp"], "postprocess": stdF('==')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", EEQ, "_", "manipOp"], "postprocess": stdF('===')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", NEQ, "_", "manipOp"], "postprocess": stdF('!=')},
+    {"name": "compareOp", "symbols": ["compareOp", "_", NNEQ, "_", "manipOp"], "postprocess": stdF('!==')},
+    {"name": "compareOp", "symbols": ["manipOp"], "postprocess": id},
+    {"name": "manipOp", "symbols": ["manipOp", "_", PLUSEQ, "_", "unaryOp"], "postprocess": stdF('+=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", MINUSEQ, "_", "unaryOp"], "postprocess": stdF('-=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", MULTEQ, "_", "unaryOp"], "postprocess": stdF('*=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", DIVEQ, "_", "unaryOp"], "postprocess": stdF('/=')},
+    {"name": "manipOp", "symbols": ["unaryOp"], "postprocess": id},
+    {"name": "unaryOp", "symbols": [NOT, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'!u', l:d[2] } }},
+    {"name": "unaryOp", "symbols": [MINUS, "__", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'-u', l:d[2] } }},
+    {"name": "unaryOp", "symbols": [MINUS, "additionOp"], "postprocess": 
         function(d, loc, reject) {
           // Reject if there's a number immediately after
-          if (d[1].t === 'NUMBER') return reject;
-          return { loc:loc, f:'u-', l:d[1] }
+          if (d[1].f === 'NUMBER') return reject;
+          return { loc:loc, f:'-u', l:d[1] }
         }
         },
-    {"name": "unaryOp", "symbols": ["dotRef"], "postprocess": id},
-    {"name": "dotRef", "symbols": ["dotRef", "_", PERIOD, "_", "funcCall"], "postprocess": function(d, loc) { return {loc:loc, f:'.', l:d[0], r:d[4] } }},
-    {"name": "dotRef", "symbols": ["funcCall"], "postprocess": id},
-    {"name": "funcCall", "symbols": ["valueOrPareth", "_", OPENP, "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', name:d[0], params:[] }
-        }
-        },
-    {"name": "funcCall", "symbols": ["valueOrPareth", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', name:d[0], params:d[4] }
-        }
-        },
-    {"name": "funcCall", "symbols": ["valueOrPareth"], "postprocess": id},
-    {"name": "valueOrPareth", "symbols": ["value"], "postprocess": id},
-    {"name": "valueOrPareth", "symbols": ["local_ident"], "postprocess": id},
-    {"name": "valueOrPareth", "symbols": ["parenthOp"], "postprocess": id},
+    {"name": "unaryOp", "symbols": ["additionOp"], "postprocess": id},
+    {"name": "additionOp", "symbols": ["additionOp", "_", PLUS, "_", "multOp"], "postprocess": stdF('+')},
+    {"name": "additionOp", "symbols": ["additionOp", "_", MINUS, "_", "multOp"], "postprocess": stdF('-')},
+    {"name": "additionOp", "symbols": ["multOp"], "postprocess": id},
+    {"name": "multOp", "symbols": ["multOp", "_", MULT, "_", "prefPostOp"], "postprocess": stdF('*')},
+    {"name": "multOp", "symbols": ["multOp", "_", DIV, "_", "prefPostOp"], "postprocess": stdF('/')},
+    {"name": "multOp", "symbols": ["prefPostOp"], "postprocess": id},
+    {"name": "prefPostOp", "symbols": [PLUSPLUS, "_", "valueOrRef"], "postprocess": function(d, loc) { return { loc:loc, f:'++u', l:d[2] } }},
+    {"name": "prefPostOp", "symbols": ["valueOrRef", "_", PLUSPLUS], "postprocess": function(d, loc) { return { loc:loc, f:'u++', l:d[0] } }},
+    {"name": "prefPostOp", "symbols": [MINUSMINUS, "_", "valueOrRef"], "postprocess": function(d, loc) { return { loc:loc, f:'--u', l:d[2] } }},
+    {"name": "prefPostOp", "symbols": ["valueOrRef", "_", MINUSMINUS], "postprocess": function(d, loc) { return { loc:loc, f:'u--', l:d[0] } }},
+    {"name": "prefPostOp", "symbols": ["valueOrRef"], "postprocess": id},
+    {"name": "valueOrRef", "symbols": ["nonRefs"], "postprocess": id},
+    {"name": "valueOrRef", "symbols": ["allRef"], "postprocess": id},
+    {"name": "dotRef", "symbols": ["allRef", "_", PERIOD, "_", "local_ident"], "postprocess": stdF('.')},
+    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } }},
+    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } }},
+    {"name": "allRef", "symbols": ["dotRef"], "postprocess": id},
+    {"name": "allRef", "symbols": ["funRef"], "postprocess": id},
+    {"name": "allRef", "symbols": ["parenthOp"], "postprocess": id},
+    {"name": "allRef", "symbols": ["local_ident"], "postprocess": id},
+    {"name": "allRef", "symbols": ["stringval"], "postprocess": id},
+    {"name": "allRef", "symbols": ["boolean"], "postprocess": id},
+    {"name": "nonRefs", "symbols": ["number"], "postprocess": id},
+    {"name": "nonRefs", "symbols": ["nullval"], "postprocess": id},
+    {"name": "nonRefs", "symbols": ["undefinedval"], "postprocess": id},
     {"name": "expression", "symbols": ["binaryOp"], "postprocess": id},
     {"name": "local_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
-    {"name": "ns_local_ident", "symbols": ["namespaced_ident"], "postprocess": toLocalIdent},
     {"name": "block", "symbols": [OPENB, "_", "nestedStatements", "_", CLOSEB], "postprocess": nth(2)},
     {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return [] }},
-    {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } }},
-    {"name": "assignment", "symbols": ["ns_local_ident", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
+    {"name": "inlineCode", "symbols": [INLINECODE], "postprocess": function(d, loc) { return { loc:loc, f:'INLINE', v:d[0][1] } }},
+    {"name": "assignRef", "symbols": ["dotRef"], "postprocess": id},
+    {"name": "assignRef", "symbols": ["local_ident"], "postprocess": id},
+    {"name": "assignment", "symbols": ["assignRef", "_", ASSIGN, "_", "expression", "_", SEMICOLON], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'=', l:d[0], r:d[4] }
         }
         },
     {"name": "elseblock", "symbols": [ELSE, "_", "block"], "postprocess": 
         function(d, loc) {
-          return { loc:loc, t:'ELSE', e:null, b:d[2] }
+          return { loc:loc, f:'elseb', block:d[2] }
         }
         },
-    {"name": "elseifblock", "symbols": [ELSE, "_", IF, "_", "expression", "_", "block"], "postprocess": 
+    {"name": "elseifblock", "symbols": [ELSE, "_", IF, "_", OPENP, "_", "expression", "_", CLOSEP, "_", "block"], "postprocess": 
         function(d, loc) {
-          return { loc:loc, t:'ELSE', e:d[4], b:d[6] }
+          return { loc:loc, f:'elseb', expr:d[6], block:d[10] }
         }
         },
-    {"name": "ifstatement$ebnf$1", "symbols": []},
-    {"name": "ifstatement$ebnf$1$subexpression$1", "symbols": ["_", "elseifblock"]},
-    {"name": "ifstatement$ebnf$1", "symbols": ["ifstatement$ebnf$1", "ifstatement$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "ifstatement$ebnf$2$subexpression$1", "symbols": ["_", "elseblock"]},
-    {"name": "ifstatement$ebnf$2", "symbols": ["ifstatement$ebnf$2$subexpression$1"], "postprocess": id},
-    {"name": "ifstatement$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "ifstatement", "symbols": [IF, "_", "expression", "_", "block", "ifstatement$ebnf$1", "ifstatement$ebnf$2"], "postprocess": 
+    {"name": "ifStatement$ebnf$1", "symbols": []},
+    {"name": "ifStatement$ebnf$1$subexpression$1", "symbols": ["_", "elseifblock"]},
+    {"name": "ifStatement$ebnf$1", "symbols": ["ifStatement$ebnf$1", "ifStatement$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "ifStatement$ebnf$2$subexpression$1", "symbols": ["_", "elseblock"]},
+    {"name": "ifStatement$ebnf$2", "symbols": ["ifStatement$ebnf$2$subexpression$1"], "postprocess": id},
+    {"name": "ifStatement$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "ifStatement", "symbols": [IF, "_", OPENP, "_", "expression", "_", CLOSEP, "_", "block", "ifStatement$ebnf$1", "ifStatement$ebnf$2"], "postprocess": 
         function(d, loc) {
-          var s = toList(5, 1)(d);
-          if (d[6]) {
-            s.push(d[6][1]);
+          var s = [ { loc:loc, f:'ifb', expr:d[4], block:d[8] } ];
+          var s = s.concat(toList(9, 1)(d));
+          if (d[10]) {
+            s.push(d[10][1]);
           }
-          return { loc:loc, t:'IF', e:d[2], b:d[4], o:s }
+          return { loc:loc, f:'if', bc:s }
         }
         },
     {"name": "reservedOp", "symbols": [GOTO], "postprocess": id},
     {"name": "reservedOp", "symbols": [EVALUATE], "postprocess": id},
     {"name": "reservedOp", "symbols": [PRESERVE], "postprocess": id},
-    {"name": "waitStatement", "symbols": [WAIT, "_", SEMICOLON], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'wait' };
-        }
-        },
     {"name": "whileStatement", "symbols": [WHILE, "_", OPENP, "_", "expression", "_", CLOSEP, "_", "block"], "postprocess": 
         function(d, loc) {
           return { loc:loc, f:'while', expr:d[4], block:d[8] };
         }
         },
-    {"name": "commaArgSet", "symbols": ["expression"], "postprocess": toArray(0)},
-    {"name": "commaArgSet", "symbols": ["expression", "_", COMMA, "_", "commaArgSet"], "postprocess": toArray(0, 4)},
-    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', name:d[0], params:[] }
-        }
-        },
-    {"name": "functionCall", "symbols": ["ns_local_ident", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": 
-        function(d, loc) {
-          return { loc:loc, f:'call', name:d[0], params:d[4] }
-        }
-        },
+    {"name": "commaArgSet", "symbols": ["expression"], "postprocess": toArray(true, 0)},
+    {"name": "commaArgSet", "symbols": ["expression", "_", COMMA, "_", "commaArgSet"], "postprocess": toArray(true, 0, 4)},
     {"name": "expressionStatement", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["assignment"], "postprocess": id},
-    {"name": "nestedStatement", "symbols": ["waitStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["letStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["ifStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
-    {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(0)},
-    {"name": "nestedStatements", "symbols": ["nestedStatement", "_", "nestedStatements"], "postprocess": toArray(0, 2)},
-    {"name": "functionParams", "symbols": ["local_ident"], "postprocess": toArray(0)},
-    {"name": "functionParams", "symbols": ["local_ident", "_", COMMA, "_", "functionParams"], "postprocess": toArray(0, 4)},
+    {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(true, 0)},
+    {"name": "nestedStatements", "symbols": ["nestedStatement", "_", "nestedStatements"], "postprocess": toArray(true, 0, 2)},
+    {"name": "functionParams", "symbols": ["local_ident"], "postprocess": toArray(true, 0)},
+    {"name": "functionParams", "symbols": ["local_ident", "_", COMMA, "_", "functionParams"], "postprocess": toArray(true, 0, 4)},
     {"name": "functionParamsB", "symbols": [OPENP, "_", "functionParams", "_", CLOSEP], "postprocess": nth(2)},
     {"name": "functionParamsB", "symbols": [OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return []; }},
     {"name": "functionStatement", "symbols": [FUNCTION, "_", "local_ident", "_", "functionParamsB", "_", "block"], "postprocess": 
@@ -381,7 +386,7 @@ var grammar = {
     {"name": "assignRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "letStatement", "symbols": [LET, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
         function(d, loc) {
-          return { loc:loc, f:'let', var:d[2], expr:d[4] }
+          return { loc:loc, f:'let', var:d[2], expr:d[6] }
         }
         },
     {"name": "constStatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 

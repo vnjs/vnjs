@@ -11,6 +11,7 @@
     'true':-1,
     'false':-1,
     'null':-1,
+    'undefined':-1,
     'import':-1,
     'const':-1,
     'if':-1,
@@ -27,7 +28,6 @@
     'from':-1,
     'install':-1,
     'function':-1,
-    'wait':-1,
     'while':-1
   };
 %}
@@ -112,25 +112,33 @@ general_expression -> _ expression _ {% nth(1) %}
   var MULT =  isSymbol('*');
   var DIV =   isSymbol('/');
 
+  var PLUSEQ =  isSymbol('+=');
+  var MINUSEQ = isSymbol('-=');
+  var MULTEQ =  isSymbol('*=');
+  var DIVEQ =   isSymbol('/=');
+
+  var PLUSPLUS   = isSymbol('++');
+  var MINUSMINUS = isSymbol('--');
+
   var NOT =    isSymbol('!');
   var ASSIGN = isSymbol('=');
 
-  var CONST =    isWord('const');
-  var LET =      isWord('let');
-  var TRUE =     isWord('true');
-  var FALSE =    isWord('false');
-  var NULL =     isWord('null');
-  var IF =       isWord('if');
-  var ELSE =     isWord('else');
-  var IMPORT =   isWord('import');
-  var FROM =     isWord('from');
-  var GOTO =     isWord('goto');
-  var DEFINE =   isWord('define');
-  var AND =      isWord('and');
-  var OR =       isWord('or');
-  var FUNCTION = isWord('function');
-  var WAIT =     isWord('wait');
-  var WHILE =    isWord('while');
+  var CONST =     isWord('const');
+  var LET =       isWord('let');
+  var TRUE =      isWord('true');
+  var FALSE =     isWord('false');
+  var NULL =      isWord('null');
+  var UNDEFINED = isWord('undefined');
+  var IF =        isWord('if');
+  var ELSE =      isWord('else');
+  var IMPORT =    isWord('import');
+  var FROM =      isWord('from');
+  var GOTO =      isWord('goto');
+  var DEFINE =    isWord('define');
+  var AND =       isWord('and');
+  var OR =        isWord('or');
+  var FUNCTION =  isWord('function');
+  var WHILE =     isWord('while');
 
   var VAR =      isWord('var');
   var PRESERVE = isWord('preserve');
@@ -155,7 +163,7 @@ general_expression -> _ expression _ {% nth(1) %}
 _  -> (%WHITESPACE | %COMMENT):* {% toNull %}
 __ -> (%WHITESPACE | %COMMENT):+ {% toNull %}
 
-stringval -> %STRING_CONST {% function(d, loc) { return { loc:loc, t:'STRING', v:d[0][1] } } %}
+stringval -> %STRING_CONST {% function(d, loc) { return { loc:loc, f:'STRING', v:d[0][1] } } %}
 
 
 plusorminus -> %MINUS {% function(d) { return '-' } %}
@@ -165,7 +173,7 @@ number -> plusorminus:? %NUMBER (%PERIOD %NUMBER):? (%EXPONENT plusorminus:? %NU
   function(d, loc) {
     return {
       loc:loc,
-      t:'NUMBER',
+      f:'NUMBER',
       v:(d[0] || "") +
          d[1][1] +
         (d[2] ? "." + d[2][1][1] : "") +
@@ -177,7 +185,7 @@ number -> plusorminus:? %NUMBER (%PERIOD %NUMBER):? (%EXPONENT plusorminus:? %NU
   function(d, loc) {
     return {
       loc:loc,
-      t:'NUMBER',
+      f:'NUMBER',
       v:(d[0] || "") +
          "." + d[2][1] +
         (d[3] ? "e" + (d[3][1] || "+") + d[3][2][1] : "")
@@ -187,17 +195,19 @@ number -> plusorminus:? %NUMBER (%PERIOD %NUMBER):? (%EXPONENT plusorminus:? %NU
 %}
 
 
-boolean -> %TRUE  {% function(d, loc) { return { loc:loc, t:'BOOLEAN', v:true } } %}
-         | %FALSE {% function(d, loc) { return { loc:loc, t:'BOOLEAN', v:false } } %}
+boolean -> %TRUE           {% function(d, loc) { return { loc:loc, f:'BOOLEAN', v:true } } %}
+         | %FALSE          {% function(d, loc) { return { loc:loc, f:'BOOLEAN', v:false } } %}
 
-nullval -> %NULL  {% function(d, loc) { return { loc:loc, t:'NULL', v:null } } %}
+nullval -> %NULL           {% function(d, loc) { return { loc:loc, f:'NULL', v:null } } %}
+
+undefinedval -> %UNDEFINED {% function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } } %}
 
 
 identifier -> %IDENT_CONST             {% function(d) { return d[0][1] } %}
 
-namespaced_ident -> identifier       {% function(d) { return d[0] } %}
-                  | identifier _ %PERIOD _ namespaced_ident
-                                     {% function(d) { return d[0] + '#' + d[4] } %}
+#namespaced_ident -> identifier       {% function(d) { return d[0] } %}
+#                  | identifier _ %PERIOD _ namespaced_ident
+#                                     {% function(d) { return d[0] + '#' + d[4] } %}
 
 
 comment -> %COMMENT {% toNull %}
@@ -216,71 +226,103 @@ AND_TOKS -> %ANDSYM {% toNull %}
 
 
 
+@{%
+var stdF = function(ftype) {
+  return function(d, loc, reject) {
+    return { loc:loc, f:ftype, l:d[0], r:d[4] };
+  }
+}
+%}
 
-value -> boolean   {% id %}
-       | number    {% id %}
-       | stringval {% id %}
-       | nullval   {% id %}
 
-parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, t:'(', v:d[2] } } %}
+
+
+parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'(', l:d[2] } } %}
 
 binaryOp -> orOp {% id %}
 
-orOp -> orOp _ OR_TOKS _ andOp {% function(d, loc) { return { loc:loc, f:'||', l:d[0], r:d[4] } } %}
+orOp -> orOp _ OR_TOKS _ andOp {% stdF('||') %}
       | andOp {% id %}
 
-andOp -> andOp _ AND_TOKS _ compareOp {% function(d, loc) { return { loc:loc, f:'&&', l:d[0], r:d[4] } } %}
+andOp -> andOp _ AND_TOKS _ compareOp {% stdF('&&') %}
        | compareOp {% id %}
 
-compareOp -> compareOp _ %LT _ additionOp   {% function(d, loc) { return { loc:loc, f:'<', l:d[0], r:d[4] } } %}
-           | compareOp _ %GT _ additionOp   {% function(d, loc) { return { loc:loc, f:'>', l:d[0], r:d[4] } } %}
-           | compareOp _ %LTE _ additionOp  {% function(d, loc) { return { loc:loc, f:'<=', l:d[0], r:d[4] } } %}
-           | compareOp _ %GTE _ additionOp  {% function(d, loc) { return { loc:loc, f:'>=', l:d[0], r:d[4] } } %}
-           | compareOp _ %EQ _ additionOp   {% function(d, loc) { return { loc:loc, f:'==', l:d[0], r:d[4] } } %}
-           | compareOp _ %EEQ _ additionOp  {% function(d, loc) { return { loc:loc, f:'===', l:d[0], r:d[4] } } %}
-           | compareOp _ %NEQ _ additionOp  {% function(d, loc) { return { loc:loc, f:'!=', l:d[0], r:d[4] } } %}
-           | compareOp _ %NNEQ _ additionOp {% function(d, loc) { return { loc:loc, f:'!==', l:d[0], r:d[4] } } %}
-           | additionOp {% id %}
+compareOp -> compareOp _ %LT _ manipOp   {% stdF('<') %}
+           | compareOp _ %GT _ manipOp   {% stdF('>') %}
+           | compareOp _ %LTE _ manipOp  {% stdF('<=') %}
+           | compareOp _ %GTE _ manipOp  {% stdF('>=') %}
+           | compareOp _ %EQ _ manipOp   {% stdF('==') %}
+           | compareOp _ %EEQ _ manipOp  {% stdF('===') %}
+           | compareOp _ %NEQ _ manipOp  {% stdF('!=') %}
+           | compareOp _ %NNEQ _ manipOp {% stdF('!==') %}
+           | manipOp {% id %}
 
-additionOp -> additionOp _ %PLUS _ multOp   {% function(d, loc) { return { loc:loc, f:'+', l:d[0], r:d[4] } } %}
-            | additionOp _ %MINUS _ multOp  {% function(d, loc) { return { loc:loc, f:'-', l:d[0], r:d[4] } } %}
-            | multOp {% id %}
+manipOp -> manipOp _ %PLUSEQ _ unaryOp  {% stdF('+=') %}
+         | manipOp _ %MINUSEQ _ unaryOp {% stdF('-=') %}
+         | manipOp _ %MULTEQ _ unaryOp  {% stdF('*=') %}
+         | manipOp _ %DIVEQ _ unaryOp   {% stdF('/=') %}
+         | unaryOp {% id %}
 
-multOp -> multOp _ %MULT _ unaryOp      {% function(d, loc) { return { loc:loc, f:'*', l:d[0], r:d[4] } } %}
-        | multOp _ %DIV _ unaryOp       {% function(d, loc) { return { loc:loc, f:'/', l:d[0], r:d[4] } } %}
-        | unaryOp {% id %}
-
-unaryOp -> %NOT _ valueOrPareth       {% function(d, loc) { return { loc:loc, f:'u!', l:d[2] } } %}
-         | %MINUS __ valueOrPareth    {% function(d, loc) { return { loc:loc, f:'u-', l:d[2] } } %}
-         | %MINUS valueOrPareth       {%
+unaryOp -> %NOT _ additionOp       {% function(d, loc) { return { loc:loc, f:'!u', l:d[2] } } %}
+         | %MINUS __ additionOp    {% function(d, loc) { return { loc:loc, f:'-u', l:d[2] } } %}
+         | %MINUS additionOp
+{%
   function(d, loc, reject) {
     // Reject if there's a number immediately after
-    if (d[1].t === 'NUMBER') return reject;
-    return { loc:loc, f:'u-', l:d[1] }
+    if (d[1].f === 'NUMBER') return reject;
+    return { loc:loc, f:'-u', l:d[1] }
   }
 %}
-         | dotRef {% id %}
+         | additionOp {% id %}
 
-dotRef -> dotRef _ %PERIOD _ funcCall {% function(d, loc) { return {loc:loc, f:'.', l:d[0], r:d[4] } } %}
-        | funcCall {% id %}
+additionOp -> additionOp _ %PLUS _ multOp   {% stdF('+') %}
+            | additionOp _ %MINUS _ multOp  {% stdF('-') %}
+            | multOp {% id %}
 
+multOp -> multOp _ %MULT _ prefPostOp    {% stdF('*') %}
+        | multOp _ %DIV _ prefPostOp     {% stdF('/') %}
+        | prefPostOp {% id %}
 
-funcCall -> valueOrPareth _ %OPENP _ %CLOSEP {%
-  function(d, loc) {
-    return { loc:loc, f:'call', name:d[0], params:[] }
-  }
-%}
-          | valueOrPareth _ %OPENP _ commaArgSet _ %CLOSEP {%
-  function(d, loc) {
-    return { loc:loc, f:'call', name:d[0], params:d[4] }
-  }
-%}
-          | valueOrPareth {% id %}
+prefPostOp -> %PLUSPLUS _ valueOrRef    {% function(d, loc) { return { loc:loc, f:'++u', l:d[2] } } %}
+            | valueOrRef _ %PLUSPLUS    {% function(d, loc) { return { loc:loc, f:'u++', l:d[0] } } %}
+            | %MINUSMINUS _ valueOrRef  {% function(d, loc) { return { loc:loc, f:'--u', l:d[2] } } %}
+            | valueOrRef _ %MINUSMINUS  {% function(d, loc) { return { loc:loc, f:'u--', l:d[0] } } %}
+            | valueOrRef {% id %}
 
 
-valueOrPareth -> value {% id %}
-               | local_ident {% id %}
-               | parenthOp {% id %}
+valueOrRef -> nonRefs {% id %}
+            | allRef {% id %}
+
+
+dotRef -> allRef _ %PERIOD _ local_ident {% stdF('.') %}
+
+
+funRef -> allRef _ %OPENP _ %CLOSEP                {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } } %}
+        | allRef _ %OPENP _ commaArgSet _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } } %}
+
+
+allRef -> dotRef {% id %}
+        | funRef {% id %}
+        | parenthOp {% id %}
+        | local_ident {% id %}
+        | stringval {% id %}
+        | boolean {% id %}
+
+
+nonRefs -> number {% id %}
+         | nullval {% id %}
+         | undefinedval {% id %}
+
+
+
+
+
+
+
+
+
+
+
 
 
 expression -> binaryOp {% id %}
@@ -295,13 +337,13 @@ expression -> binaryOp {% id %}
     if ( KEYWORDS[str] === -1 ) {
       return reject;
     }
-    return str;
+    return { loc:loc, f:'IDENT', v:str };
   };
 %}
 
 local_ident -> identifier           {% toLocalIdent %}
 
-ns_local_ident -> namespaced_ident  {% toLocalIdent %}
+#ns_local_ident -> namespaced_ident  {% toLocalIdent %}
 
 
 # ---------------
@@ -315,12 +357,15 @@ block -> %OPENB _ nestedStatements _ %CLOSEB {% nth(2) %}
 
 
 inlineCode -> %INLINECODE
-      {% function(d, loc) { return { loc:loc, t:'INLINE', v:d[0][1] } } %}
+      {% function(d, loc) { return { loc:loc, f:'INLINE', v:d[0][1] } } %}
 
 
 
+assignRef -> dotRef      {% id %}
+           | local_ident {% id %}
 
-assignment -> ns_local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
+
+assignment -> assignRef _ %ASSIGN _ expression _ %SEMICOLON {%
   function(d, loc) {
     return { loc:loc, f:'=', l:d[0], r:d[4] }
   }
@@ -328,23 +373,24 @@ assignment -> ns_local_ident _ %ASSIGN _ expression _ %SEMICOLON {%
 
 elseblock -> %ELSE _ block {%
   function(d, loc) {
-    return { loc:loc, t:'ELSE', e:null, b:d[2] }
+    return { loc:loc, f:'elseb', block:d[2] }
   }
 %}
 
-elseifblock -> %ELSE _ %IF _ expression _ block {%
+elseifblock -> %ELSE _ %IF _ %OPENP _ expression _ %CLOSEP _ block {%
   function(d, loc) {
-    return { loc:loc, t:'ELSE', e:d[4], b:d[6] }
+    return { loc:loc, f:'elseb', expr:d[6], block:d[10] }
   }
 %}
 
-ifstatement -> %IF _ expression _ block ( _ elseifblock ):* ( _ elseblock ):? {%
+ifStatement -> %IF _ %OPENP _ expression _ %CLOSEP _ block ( _ elseifblock ):* ( _ elseblock ):? {%
   function(d, loc) {
-    var s = toList(5, 1)(d);
-    if (d[6]) {
-      s.push(d[6][1]);
+    var s = [ { loc:loc, f:'ifb', expr:d[4], block:d[8] } ];
+    var s = s.concat(toList(9, 1)(d));
+    if (d[10]) {
+      s.push(d[10][1]);
     }
-    return { loc:loc, t:'IF', e:d[2], b:d[4], o:s }
+    return { loc:loc, f:'if', bc:s }
   }
 %}
 
@@ -360,13 +406,13 @@ reservedOp -> %GOTO {% id %}
 
 
 @{%
-  var toArray = function(v1, v2) {
+  var toArray = function(raw, v1, v2) {
     // v1 will always be a single value.
     // v2 will be an array or undefined
     return function(d, loc, reject) {
 
       var val1 = d[v1];
-      const varr = [ { loc:loc, d:val1 } ];
+      const varr = raw ? [ val1 ] : [ { loc:loc, d:val1 } ];
       if (v2 === undefined) {
           return varr;
       }
@@ -381,12 +427,6 @@ reservedOp -> %GOTO {% id %}
 
 
 
-waitStatement -> %WAIT _ %SEMICOLON {%
-  function(d, loc) {
-    return { loc:loc, f:'wait' };
-  }
-%}
-
 whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block {%
   function(d, loc) {
     return { loc:loc, f:'while', expr:d[4], block:d[8] };
@@ -396,23 +436,9 @@ whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block {%
 
 
 
-commaArgSet -> expression {% toArray(0) %}
-             | expression _ %COMMA _ commaArgSet {% toArray(0, 4) %}
+commaArgSet -> expression {% toArray(true, 0) %}
+             | expression _ %COMMA _ commaArgSet {% toArray(true, 0, 4) %}
 
-
-
-functionCall ->
-                ns_local_ident _ %OPENP _ %CLOSEP {%
-  function(d, loc) {
-    return { loc:loc, f:'call', name:d[0], params:[] }
-  }
-%}
-              |
-                ns_local_ident _ %OPENP _ commaArgSet _ %CLOSEP {%
-  function(d, loc) {
-    return { loc:loc, f:'call', name:d[0], params:d[4] }
-  }
-%}
 
 
 
@@ -425,20 +451,20 @@ expressionStatement -> expression _ %SEMICOLON {% nth(0) %}
 
 nestedStatement ->
                    assignment {% id %}
-                 | waitStatement {% id %}
                  | letStatement {% id %}
                  | constStatement {% id %}
                  | whileStatement {% id %}
+                 | ifStatement {% id %}
                  | expressionStatement {% id %}
 
-nestedStatements -> nestedStatement {% toArray(0) %}
+nestedStatements -> nestedStatement {% toArray(true, 0) %}
                   | nestedStatement _ nestedStatements
-                                {% toArray(0, 2) %}
+                                {% toArray(true, 0, 2) %}
 
 
-functionParams -> local_ident {% toArray(0) %}
+functionParams -> local_ident {% toArray(true, 0) %}
                 | local_ident _ %COMMA _ functionParams
-                        {% toArray(0, 4) %}
+                        {% toArray(true, 0, 4) %}
 
 functionParamsB -> %OPENP _ functionParams _ %CLOSEP {% nth(2) %}
                  | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
@@ -455,12 +481,11 @@ functionStatement -> %FUNCTION _ local_ident
 
 
 assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}
-#                 | functionCall _ %SEMICOLON {% nth(0) %}
 
 
 letStatement -> %LET _ local_ident _ %ASSIGN _ assignRightSide {%
   function(d, loc) {
-    return { loc:loc, f:'let', var:d[2], expr:d[4] }
+    return { loc:loc, f:'let', var:d[2], expr:d[6] }
   }
 %}
 

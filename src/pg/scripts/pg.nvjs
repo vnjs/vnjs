@@ -9,7 +9,7 @@ function start(a, b, c) {
     // Add black screen layer at index 0
     screen.putElement(constants.blackElementBackground);
 
-    wait;
+    wait();
 
     // Create an instance of Tom
     const tom = Tom();
@@ -17,22 +17,89 @@ function start(a, b, c) {
     // Set properties of the element
     tom.layer = 10;
     tom.x = 0;
-    tom.y = 0;
+    tom.y = true;
 
     // Put the 'tom' element on screen,
     screen.putElement(tom);
 
     // A loop,
     let i = 0;
-    while (i < 10) {
+    i = 5;
 
-        wait;
-
-        tom.x = tom.x + 10;
+    if (i > 5) {
+        if (i == 6) {
+            i = i + 10;
+        }
+        else if (i < 3) {
+            i = i - 3000;
+        }
         i = i + 1;
-
     }
 
-    system.log('All done! My sir!');
+    if (tom.isCool() || (tom.isNotCool() && i > 40)) {
+        i = i + 2;
+        tom.say("You're very welcome: %s", tom.getName());
+        while (tom.isCool()) {
 
+            if (i < 6) {
+                i = i + 1;
+            }
+            wait();
+
+            tom.x = tom.x + 10;
+            tom.y = tom.y + 1;
+            i = i + 1;
+
+            while (i < 40) {
+                i += 1;
+                if (i === 39) {
+                    tom.addFlag('cool');
+                }
+            }
+
+
+        }
+    }
+    else if (i > 100) {
+        system.log('WOAH! i is over 100!');
+        i = i + 5;
+    }
+    else {
+//        system.log('Oops, i >= 10!');
+        i = i - 10;
+    }
+
+    system.log("All done! My \"sir!\"");
+
+}
+
+
+
+function test() {
+    let a = 10;
+    while (true) {
+        a += 1;
+        a -= b();
+        a *= 8;
+        a /= 8;
+        global.a += 1;
+        global.a -= 8;
+        global.a *= 8;
+        global.a /= 8;
+
+        if (a += b) {
+            console.log(a.toString());
+            a().b = 5;
+        }
+        a++;
+    }
+}
+
+
+function test2() {
+    a += 4 + 3;
+    a += 1 + 9 * 3000 * t() - 100;
+    if (a > 10) {
+        console.log(d + (a.b++));
+    }
 }
