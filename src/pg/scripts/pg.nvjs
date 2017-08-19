@@ -1,5 +1,4 @@
 
-
 // The 'Tom' instance from JavaScript,
 const Tom = require('./tom.js');
 
@@ -76,7 +75,7 @@ function start(a, b, c) {
 
 
 function test() {
-    let a = 10;
+    let a = -( -10 + 3);
     while (true) {
         a += 1;
         a -= b();
@@ -95,11 +94,6 @@ function test() {
     }
 }
 
-
 function test2() {
-    a += 4 + 3;
-    a += 1 + 9 * 3000 * t() - 100;
-    if (a > 10) {
-        console.log(d + (a.b++));
-    }
+    let a = + - + -10 + +x.m * 7;
 }

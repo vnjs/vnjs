@@ -257,7 +257,6 @@ var grammar = {
     {"name": "nullval", "symbols": [NULL], "postprocess": function(d, loc) { return { loc:loc, f:'NULL', v:null } }},
     {"name": "undefinedval", "symbols": [UNDEFINED], "postprocess": function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } }},
     {"name": "identifier", "symbols": [IDENT_CONST], "postprocess": function(d) { return d[0][1] }},
-    {"name": "comment", "symbols": [COMMENT], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [ORSYM], "postprocess": toNull},
     {"name": "OR_TOKS", "symbols": [OR], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [ANDSYM], "postprocess": toNull},
@@ -277,31 +276,39 @@ var grammar = {
     {"name": "compareOp", "symbols": ["compareOp", "_", NEQ, "_", "manipOp"], "postprocess": stdF('!=')},
     {"name": "compareOp", "symbols": ["compareOp", "_", NNEQ, "_", "manipOp"], "postprocess": stdF('!==')},
     {"name": "compareOp", "symbols": ["manipOp"], "postprocess": id},
-    {"name": "manipOp", "symbols": ["manipOp", "_", PLUSEQ, "_", "unaryOp"], "postprocess": stdF('+=')},
-    {"name": "manipOp", "symbols": ["manipOp", "_", MINUSEQ, "_", "unaryOp"], "postprocess": stdF('-=')},
-    {"name": "manipOp", "symbols": ["manipOp", "_", MULTEQ, "_", "unaryOp"], "postprocess": stdF('*=')},
-    {"name": "manipOp", "symbols": ["manipOp", "_", DIVEQ, "_", "unaryOp"], "postprocess": stdF('/=')},
-    {"name": "manipOp", "symbols": ["unaryOp"], "postprocess": id},
-    {"name": "unaryOp", "symbols": [NOT, "_", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'!u', l:d[2] } }},
-    {"name": "unaryOp", "symbols": [MINUS, "__", "additionOp"], "postprocess": function(d, loc) { return { loc:loc, f:'-u', l:d[2] } }},
-    {"name": "unaryOp", "symbols": [MINUS, "additionOp"], "postprocess": 
+    {"name": "manipOp", "symbols": ["manipOp", "_", PLUSEQ, "_", "additionOp"], "postprocess": stdF('+=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", MINUSEQ, "_", "additionOp"], "postprocess": stdF('-=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", MULTEQ, "_", "additionOp"], "postprocess": stdF('*=')},
+    {"name": "manipOp", "symbols": ["manipOp", "_", DIVEQ, "_", "additionOp"], "postprocess": stdF('/=')},
+    {"name": "manipOp", "symbols": ["additionOp"], "postprocess": id},
+    {"name": "additionOp", "symbols": ["additionOp", "_", PLUS, "_", "multOp"], "postprocess": stdF('+')},
+    {"name": "additionOp", "symbols": ["additionOp", "_", MINUS, "_", "multOp"], "postprocess": stdF('-')},
+    {"name": "additionOp", "symbols": ["multOp"], "postprocess": id},
+    {"name": "multOp", "symbols": ["multOp", "_", MULT, "_", "unaryOp"], "postprocess": stdF('*')},
+    {"name": "multOp", "symbols": ["multOp", "_", DIV, "_", "unaryOp"], "postprocess": stdF('/')},
+    {"name": "multOp", "symbols": ["unaryOp"], "postprocess": id},
+    {"name": "unaryOp", "symbols": [NOT, "_", "unaryOp"], "postprocess": function(d, loc) { return { loc:loc, f:'!u', l:d[2] } }},
+    {"name": "unaryOp", "symbols": [MINUS, "__", "unaryOp"], "postprocess": function(d, loc) { return { loc:loc, f:'-u', l:d[2] } }},
+    {"name": "unaryOp", "symbols": [PLUS, "__", "unaryOp"], "postprocess": function(d, loc) { return { loc:loc, f:'+u', l:d[2] } }},
+    {"name": "unaryOp", "symbols": [MINUS, "unaryOp"], "postprocess": 
         function(d, loc, reject) {
           // Reject if there's a number immediately after
           if (d[1].f === 'NUMBER') return reject;
           return { loc:loc, f:'-u', l:d[1] }
         }
         },
-    {"name": "unaryOp", "symbols": ["additionOp"], "postprocess": id},
-    {"name": "additionOp", "symbols": ["additionOp", "_", PLUS, "_", "multOp"], "postprocess": stdF('+')},
-    {"name": "additionOp", "symbols": ["additionOp", "_", MINUS, "_", "multOp"], "postprocess": stdF('-')},
-    {"name": "additionOp", "symbols": ["multOp"], "postprocess": id},
-    {"name": "multOp", "symbols": ["multOp", "_", MULT, "_", "prefPostOp"], "postprocess": stdF('*')},
-    {"name": "multOp", "symbols": ["multOp", "_", DIV, "_", "prefPostOp"], "postprocess": stdF('/')},
-    {"name": "multOp", "symbols": ["prefPostOp"], "postprocess": id},
-    {"name": "prefPostOp", "symbols": [PLUSPLUS, "_", "valueOrRef"], "postprocess": function(d, loc) { return { loc:loc, f:'++u', l:d[2] } }},
-    {"name": "prefPostOp", "symbols": ["valueOrRef", "_", PLUSPLUS], "postprocess": function(d, loc) { return { loc:loc, f:'u++', l:d[0] } }},
-    {"name": "prefPostOp", "symbols": [MINUSMINUS, "_", "valueOrRef"], "postprocess": function(d, loc) { return { loc:loc, f:'--u', l:d[2] } }},
-    {"name": "prefPostOp", "symbols": ["valueOrRef", "_", MINUSMINUS], "postprocess": function(d, loc) { return { loc:loc, f:'u--', l:d[0] } }},
+    {"name": "unaryOp", "symbols": [PLUS, "unaryOp"], "postprocess": 
+        function(d, loc, reject) {
+          // Reject if there's a number immediately after
+          if (d[1].f === 'NUMBER') return reject;
+          return { loc:loc, f:'+u', l:d[1] }
+        }
+        },
+    {"name": "unaryOp", "symbols": ["prefPostOp"], "postprocess": id},
+    {"name": "prefPostOp", "symbols": [PLUSPLUS, "_", "prefPostOp"], "postprocess": function(d, loc) { return { loc:loc, f:'++u', l:d[2] } }},
+    {"name": "prefPostOp", "symbols": ["prefPostOp", "_", PLUSPLUS], "postprocess": function(d, loc) { return { loc:loc, f:'u++', l:d[0] } }},
+    {"name": "prefPostOp", "symbols": [MINUSMINUS, "_", "prefPostOp"], "postprocess": function(d, loc) { return { loc:loc, f:'--u', l:d[2] } }},
+    {"name": "prefPostOp", "symbols": ["prefPostOp", "_", MINUSMINUS], "postprocess": function(d, loc) { return { loc:loc, f:'u--', l:d[0] } }},
     {"name": "prefPostOp", "symbols": ["valueOrRef"], "postprocess": id},
     {"name": "valueOrRef", "symbols": ["nonRefs"], "postprocess": id},
     {"name": "valueOrRef", "symbols": ["allRef"], "postprocess": id},

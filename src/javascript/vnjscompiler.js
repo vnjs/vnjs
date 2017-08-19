@@ -397,6 +397,11 @@ function Compiler() {
                 const v1 = asSourceLine(gen_code, l);
                 return ('-( ' + v1 + ' )');
             }
+            case ('+u'): {
+                const l = fun.l;
+                const v1 = asSourceLine(gen_code, l);
+                return ('+( ' + v1 + ' )');
+            }
             case ('!u'): {
                 const l = fun.l;
                 const v1 = asSourceLine(gen_code, l);
@@ -581,8 +586,22 @@ function Compiler() {
             case ('('): {
                 const l = fun.l;
                 return processFunction(gen_code, l);
+            }
 
-//                return linePush('( ' + v1 + ' )');
+            case ('-u'): {
+                const l = fun.l;
+                const v1 = processFunction(gen_code, l);
+                return linePush('-( ' + v1 + ' )');
+            }
+            case ('+u'): {
+                const l = fun.l;
+                const v1 = processFunction(gen_code, l);
+                return linePush('+( ' + v1 + ' )');
+            }
+            case ('!u'): {
+                const l = fun.l;
+                const v1 = processFunction(gen_code, l);
+                return linePush('!( ' + v1 + ' )');
             }
 
             case ('.'): {

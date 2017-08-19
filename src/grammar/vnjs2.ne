@@ -202,15 +202,7 @@ nullval -> %NULL           {% function(d, loc) { return { loc:loc, f:'NULL', v:n
 
 undefinedval -> %UNDEFINED {% function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } } %}
 
-
 identifier -> %IDENT_CONST             {% function(d) { return d[0][1] } %}
-
-#namespaced_ident -> identifier       {% function(d) { return d[0] } %}
-#                  | identifier _ %PERIOD _ namespaced_ident
-#                                     {% function(d) { return d[0] + '#' + d[4] } %}
-
-
-comment -> %COMMENT {% toNull %}
 
 
 ##### TOKENS END
@@ -257,15 +249,24 @@ compareOp -> compareOp _ %LT _ manipOp   {% stdF('<') %}
            | compareOp _ %NNEQ _ manipOp {% stdF('!==') %}
            | manipOp {% id %}
 
-manipOp -> manipOp _ %PLUSEQ _ unaryOp  {% stdF('+=') %}
-         | manipOp _ %MINUSEQ _ unaryOp {% stdF('-=') %}
-         | manipOp _ %MULTEQ _ unaryOp  {% stdF('*=') %}
-         | manipOp _ %DIVEQ _ unaryOp   {% stdF('/=') %}
-         | unaryOp {% id %}
+manipOp -> manipOp _ %PLUSEQ _ additionOp  {% stdF('+=') %}
+         | manipOp _ %MINUSEQ _ additionOp {% stdF('-=') %}
+         | manipOp _ %MULTEQ _ additionOp  {% stdF('*=') %}
+         | manipOp _ %DIVEQ _ additionOp   {% stdF('/=') %}
+         | additionOp {% id %}
 
-unaryOp -> %NOT _ additionOp       {% function(d, loc) { return { loc:loc, f:'!u', l:d[2] } } %}
-         | %MINUS __ additionOp    {% function(d, loc) { return { loc:loc, f:'-u', l:d[2] } } %}
-         | %MINUS additionOp
+additionOp -> additionOp _ %PLUS _ multOp   {% stdF('+') %}
+            | additionOp _ %MINUS _ multOp  {% stdF('-') %}
+            | multOp {% id %}
+
+multOp -> multOp _ %MULT _ unaryOp    {% stdF('*') %}
+        | multOp _ %DIV _ unaryOp     {% stdF('/') %}
+        | unaryOp {% id %}
+
+unaryOp -> %NOT _ unaryOp       {% function(d, loc) { return { loc:loc, f:'!u', l:d[2] } } %}
+         | %MINUS __ unaryOp    {% function(d, loc) { return { loc:loc, f:'-u', l:d[2] } } %}
+         | %PLUS __ unaryOp     {% function(d, loc) { return { loc:loc, f:'+u', l:d[2] } } %}
+         | %MINUS unaryOp
 {%
   function(d, loc, reject) {
     // Reject if there's a number immediately after
@@ -273,20 +274,20 @@ unaryOp -> %NOT _ additionOp       {% function(d, loc) { return { loc:loc, f:'!u
     return { loc:loc, f:'-u', l:d[1] }
   }
 %}
-         | additionOp {% id %}
+         | %PLUS unaryOp
+{%
+    function(d, loc, reject) {
+      // Reject if there's a number immediately after
+      if (d[1].f === 'NUMBER') return reject;
+      return { loc:loc, f:'+u', l:d[1] }
+    }
+%}
+         | prefPostOp {% id %}
 
-additionOp -> additionOp _ %PLUS _ multOp   {% stdF('+') %}
-            | additionOp _ %MINUS _ multOp  {% stdF('-') %}
-            | multOp {% id %}
-
-multOp -> multOp _ %MULT _ prefPostOp    {% stdF('*') %}
-        | multOp _ %DIV _ prefPostOp     {% stdF('/') %}
-        | prefPostOp {% id %}
-
-prefPostOp -> %PLUSPLUS _ valueOrRef    {% function(d, loc) { return { loc:loc, f:'++u', l:d[2] } } %}
-            | valueOrRef _ %PLUSPLUS    {% function(d, loc) { return { loc:loc, f:'u++', l:d[0] } } %}
-            | %MINUSMINUS _ valueOrRef  {% function(d, loc) { return { loc:loc, f:'--u', l:d[2] } } %}
-            | valueOrRef _ %MINUSMINUS  {% function(d, loc) { return { loc:loc, f:'u--', l:d[0] } } %}
+prefPostOp -> %PLUSPLUS _ prefPostOp    {% function(d, loc) { return { loc:loc, f:'++u', l:d[2] } } %}
+            | prefPostOp _ %PLUSPLUS    {% function(d, loc) { return { loc:loc, f:'u++', l:d[0] } } %}
+            | %MINUSMINUS _ prefPostOp  {% function(d, loc) { return { loc:loc, f:'--u', l:d[2] } } %}
+            | prefPostOp _ %MINUSMINUS  {% function(d, loc) { return { loc:loc, f:'u--', l:d[0] } } %}
             | valueOrRef {% id %}
 
 
@@ -342,8 +343,6 @@ expression -> binaryOp {% id %}
 %}
 
 local_ident -> identifier           {% toLocalIdent %}
-
-#ns_local_ident -> namespaced_ident  {% toLocalIdent %}
 
 
 # ---------------
