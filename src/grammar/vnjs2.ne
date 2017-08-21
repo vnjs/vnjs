@@ -28,7 +28,8 @@
         'from':-1,
         'install':-1,
         'function':-1,
-        'while':-1
+        'while':-1,
+        'return':-1,
     };
 
     function toList(n, m) {
@@ -47,7 +48,7 @@
         }
     }
 
-    // Concatinates a single value (v1) with an array (v2) and returns a new
+    // Concatenates a single value (v1) with an array (v2) and returns a new
     // array.
     function toArray(v1, v2) {
         // v1 will always be a single value.
@@ -63,6 +64,29 @@
                 var val2 = d[v2];
                 return varr.concat(d[v2]);
             }
+
+        }
+    }
+
+    // Concatenates a single object assignment with an existing map and returns
+    // a new map.
+    function toObject(v1, v2) {
+        // v1 will always be a single value.
+        // v2 will be an array or undefined
+        return function(d, loc, reject) {
+
+            var ob = {};
+            var val1 = d[v1];
+            for (var key in val1) {
+                ob[key] = val1[key];
+            }
+            if (v2 !== undefined) {
+                var val2 = d[v2];
+                for (var key in val2) {
+                    ob[key] = val2[key];
+                }
+            }
+            return ob;
 
         }
     }
@@ -99,6 +123,8 @@
     var COLON =   isSymbol(':');
     var PERIOD =  isSymbol('.');
     var COMMA =   isSymbol(',');
+    var OPENS =   isSymbol('[');
+    var CLOSES =  isSymbol(']');
     var OPENP =   isSymbol('(');
     var CLOSEP =  isSymbol(')');
     var OPENB =   isSymbol('{');
@@ -147,6 +173,7 @@
     var OR =        isWord('or');
     var FUNCTION =  isWord('function');
     var WHILE =     isWord('while');
+    var RETURN =    isWord('return');
 
     var VAR =      isWord('var');
     var PRESERVE = isWord('preserve');
@@ -237,6 +264,45 @@ AND_TOKS -> %ANDSYM {% toNull %}
 %}
 
 
+# Comma separated expression list
+
+expressionList -> expression                            {% toArray(0) %}
+                | expression _ %COMMA _ expressionList  {% toArray(0, 4) %}
+
+
+inassign -> local_ident _ %COLON _ expression
+{%
+    function(d, loc) {
+        const ob = {};
+        ob[d[0].v] = d[4];
+        return ob;
+    }
+%}
+          | local_ident
+{%
+  function(d, loc) {
+      const ob = {};
+      ob[d[0].v] = d[0];
+      return ob;
+  }
+%}
+
+
+assignList -> assignList _ %COMMA _ inassign  {% toObject(0, 4) %}
+            | inassign                        {% id %}
+
+
+array -> %OPENS _ %CLOSES
+                    {% function(d, loc) { return { loc:loc, f:'[', l:[] } } %}
+       | %OPENS _ expressionList (_ %COMMA):? _ %CLOSES
+                    {% function(d, loc) { return { loc:loc, f:'[', l:d[2] } } %}
+
+object -> %OPENB _ %CLOSEB
+                    {% function(d, loc) { return { loc:loc, f:'{', l:{} } } %}
+        | %OPENB _ assignList (_ %COMMA):? _ %CLOSEB
+                    {% function(d, loc) { return { loc:loc, f:'{', l:d[2] } } %}
+
+
 parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'(', l:d[2] } } %}
 
 binaryOp -> orOp {% id %}
@@ -306,13 +372,15 @@ valueOrRef -> nonRefs {% id %}
 dotRef -> allRef _ %PERIOD _ local_ident {% stdF('.') %}
 
 
-funRef -> allRef _ %OPENP _ %CLOSEP                {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } } %}
-        | allRef _ %OPENP _ commaArgSet _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } } %}
+funRef -> allRef _ %OPENP _ %CLOSEP                   {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } } %}
+        | allRef _ %OPENP _ expressionList _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } } %}
 
 
 allRef -> dotRef {% id %}
         | funRef {% id %}
         | parenthOp {% id %}
+        | array {% id %}
+        | object {% id %}
         | local_ident {% id %}
         | stringval {% id %}
         | boolean {% id %}
@@ -357,10 +425,6 @@ local_ident -> identifier           {% toLocalIdent %}
 
 block -> %OPENB _ nestedStatements _ %CLOSEB {% nth(2) %}
        | %OPENB _ %CLOSEB                    {% function(d, loc) { return [] } %}
-
-# Array call, for example;
-#   fadeIn( background );
-
 
 
 inlineCode -> %INLINECODE
@@ -422,8 +486,8 @@ whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block
 
 
 
-commaArgSet -> expression {% toArray(0) %}
-             | expression _ %COMMA _ commaArgSet {% toArray(0, 4) %}
+#commaArgSet -> expression {% toArray(0) %}
+#             | expression _ %COMMA _ commaArgSet {% toArray(0, 4) %}
 
 
 
@@ -437,6 +501,7 @@ nestedStatement ->
                  | constStatement {% id %}
                  | whileStatement {% id %}
                  | ifStatement {% id %}
+                 | returnStatement {% id %}
                  | expressionStatement {% id %}
 
 nestedStatements -> nestedStatement {% toArray(0) %}
@@ -444,16 +509,18 @@ nestedStatements -> nestedStatement {% toArray(0) %}
                                 {% toArray(0, 2) %}
 
 
-functionParams -> local_ident {% toArray(0) %}
-                | local_ident _ %COMMA _ functionParams
-                        {% toArray(0, 4) %}
+localIdentSet -> local_ident {% toArray(0) %}
+               | local_ident _ %COMMA _ localIdentSet {% toArray(0, 4) %}
 
-functionParamsB -> %OPENP _ functionParams _ %CLOSEP {% nth(2) %}
-                 | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
+localIdentSetP -> %OPENP _ localIdentSet _ %CLOSEP {% nth(2) %}
+                | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
+
+localIdentSetB -> %OPENB _ localIdentSet ( _ %COMMA ):? _ %CLOSEB {% nth(2) %}
+                | %OPENB _ %CLOSEB {% function(d, loc) { return []; } %}
 
 
 functionStatement -> %FUNCTION _ local_ident
-                     _ functionParamsB
+                     _ localIdentSetP
                      _ block
 {%
     function(d, loc) {
@@ -464,19 +531,38 @@ functionStatement -> %FUNCTION _ local_ident
 
 assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}
 
+assignLeftSide -> local_ident {% id %}
+                | localIdentSetB
+        {% function(d, loc) { return { loc:loc, f:'ASSIGNMAP', v:d[0] } } %}
 
-letStatement -> %LET _ local_ident _ %ASSIGN _ assignRightSide {%
+
+letStatement -> %LET _ assignLeftSide _ %ASSIGN _ assignRightSide {%
     function(d, loc) {
         return { loc:loc, f:'let', var:d[2], expr:d[6] }
     }
 %}
 
 
-constStatement -> %CONST _ local_ident _ %ASSIGN _ assignRightSide {%
+constStatement -> %CONST _ assignLeftSide _ %ASSIGN _ assignRightSide {%
     function(d, loc) {
         return { loc:loc, f:'const', var:d[2], expr:d[6] }
     }
 %}
+
+
+returnStatement -> %RETURN _ assignRightSide
+{%
+    function(d, loc) {
+        return { loc:loc, f:'return', expr:d[2] }
+    }
+%}
+                 | %RETURN _ %SEMICOLON
+{%
+    function(d, loc) {
+        return { loc:loc, f:'return' }
+    }
+%}
+
 
 
 # Base statements,

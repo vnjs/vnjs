@@ -1,10 +1,54 @@
 
-// The starting script,
+/* global screen, constants, wait */
 
-define start {
 
-  // The Visual Novel starts here.
 
-  
+
+function test() {
+    return "This is a message returned by function \"test\"...";
+}
+
+
+
+function run() {
+    // Print test message from other function,
+    console.log(test());
+}
+
+
+
+// Start entry point
+
+function main() {
+
+    const {
+        addElement,
+        element,
+    } = screen;
+
+    // Background element is automatically set to layer -100
+    addElement(constants.checkeredBackground);
+
+    // Create wilma character element,
+    const wilma = element({
+        name: 'Wilma',
+        base: 'characters/test_character_wilma.png',
+        layer: 1,
+        x: 0,
+        y: 0,
+        alpha: 1,
+    });
+
+    // Add wilma,
+    addElement(wilma);
+
+    // Transaction animation for wilma,
+    wilma.animateTo({ x: 400 }, 0.5, constants.linearTransform);
+
+    // Print test message from other function,
+    console.log(test());
+
+    // Wait until interaction interrupts this,
+    wait();
 
 }

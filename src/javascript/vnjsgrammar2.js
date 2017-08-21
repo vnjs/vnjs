@@ -42,7 +42,8 @@ function $(o) {
         'from':-1,
         'install':-1,
         'function':-1,
-        'while':-1
+        'while':-1,
+        'return':-1,
     };
 
     function toList(n, m) {
@@ -61,7 +62,7 @@ function $(o) {
         }
     }
 
-    // Concatinates a single value (v1) with an array (v2) and returns a new
+    // Concatenates a single value (v1) with an array (v2) and returns a new
     // array.
     function toArray(v1, v2) {
         // v1 will always be a single value.
@@ -77,6 +78,29 @@ function $(o) {
                 var val2 = d[v2];
                 return varr.concat(d[v2]);
             }
+
+        }
+    }
+
+    // Concatenates a single object assignment with an existing map and returns
+    // a new map.
+    function toObject(v1, v2) {
+        // v1 will always be a single value.
+        // v2 will be an array or undefined
+        return function(d, loc, reject) {
+
+            var ob = {};
+            var val1 = d[v1];
+            for (var key in val1) {
+                ob[key] = val1[key];
+            }
+            if (v2 !== undefined) {
+                var val2 = d[v2];
+                for (var key in val2) {
+                    ob[key] = val2[key];
+                }
+            }
+            return ob;
 
         }
     }
@@ -113,6 +137,8 @@ function $(o) {
     var COLON =   isSymbol(':');
     var PERIOD =  isSymbol('.');
     var COMMA =   isSymbol(',');
+    var OPENS =   isSymbol('[');
+    var CLOSES =  isSymbol(']');
     var OPENP =   isSymbol('(');
     var CLOSEP =  isSymbol(')');
     var OPENB =   isSymbol('{');
@@ -161,6 +187,7 @@ function $(o) {
     var OR =        isWord('or');
     var FUNCTION =  isWord('function');
     var WHILE =     isWord('while');
+    var RETURN =    isWord('return');
 
     var VAR =      isWord('var');
     var PRESERVE = isWord('preserve');
@@ -261,6 +288,34 @@ var grammar = {
     {"name": "OR_TOKS", "symbols": [OR], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [ANDSYM], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [AND], "postprocess": toNull},
+    {"name": "expressionList", "symbols": ["expression"], "postprocess": toArray(0)},
+    {"name": "expressionList", "symbols": ["expression", "_", COMMA, "_", "expressionList"], "postprocess": toArray(0, 4)},
+    {"name": "inassign", "symbols": ["local_ident", "_", COLON, "_", "expression"], "postprocess": 
+        function(d, loc) {
+            const ob = {};
+            ob[d[0].v] = d[4];
+            return ob;
+        }
+        },
+    {"name": "inassign", "symbols": ["local_ident"], "postprocess": 
+        function(d, loc) {
+            const ob = {};
+            ob[d[0].v] = d[0];
+            return ob;
+        }
+        },
+    {"name": "assignList", "symbols": ["assignList", "_", COMMA, "_", "inassign"], "postprocess": toObject(0, 4)},
+    {"name": "assignList", "symbols": ["inassign"], "postprocess": id},
+    {"name": "array", "symbols": [OPENS, "_", CLOSES], "postprocess": function(d, loc) { return { loc:loc, f:'[', l:[] } }},
+    {"name": "array$ebnf$1$subexpression$1", "symbols": ["_", COMMA]},
+    {"name": "array$ebnf$1", "symbols": ["array$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "array$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "array", "symbols": [OPENS, "_", "expressionList", "array$ebnf$1", "_", CLOSES], "postprocess": function(d, loc) { return { loc:loc, f:'[', l:d[2] } }},
+    {"name": "object", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, f:'{', l:{} } }},
+    {"name": "object$ebnf$1$subexpression$1", "symbols": ["_", COMMA]},
+    {"name": "object$ebnf$1", "symbols": ["object$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "object$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "object", "symbols": [OPENB, "_", "assignList", "object$ebnf$1", "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, f:'{', l:d[2] } }},
     {"name": "parenthOp", "symbols": [OPENP, "_", "binaryOp", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'(', l:d[2] } }},
     {"name": "binaryOp", "symbols": ["orOp"], "postprocess": id},
     {"name": "orOp", "symbols": ["orOp", "_", "OR_TOKS", "_", "andOp"], "postprocess": stdF('||')},
@@ -314,10 +369,12 @@ var grammar = {
     {"name": "valueOrRef", "symbols": ["allRef"], "postprocess": id},
     {"name": "dotRef", "symbols": ["allRef", "_", PERIOD, "_", "local_ident"], "postprocess": stdF('.')},
     {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } }},
-    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", "commaArgSet", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } }},
+    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", "expressionList", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } }},
     {"name": "allRef", "symbols": ["dotRef"], "postprocess": id},
     {"name": "allRef", "symbols": ["funRef"], "postprocess": id},
     {"name": "allRef", "symbols": ["parenthOp"], "postprocess": id},
+    {"name": "allRef", "symbols": ["array"], "postprocess": id},
+    {"name": "allRef", "symbols": ["object"], "postprocess": id},
     {"name": "allRef", "symbols": ["local_ident"], "postprocess": id},
     {"name": "allRef", "symbols": ["stringval"], "postprocess": id},
     {"name": "allRef", "symbols": ["boolean"], "postprocess": id},
@@ -370,35 +427,51 @@ var grammar = {
             return { loc:loc, f:'while', expr:d[4], block:d[8] };
         }
         },
-    {"name": "commaArgSet", "symbols": ["expression"], "postprocess": toArray(0)},
-    {"name": "commaArgSet", "symbols": ["expression", "_", COMMA, "_", "commaArgSet"], "postprocess": toArray(0, 4)},
     {"name": "expressionStatement", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["assignment"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["letStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["ifStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["returnStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
     {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(0)},
     {"name": "nestedStatements", "symbols": ["nestedStatement", "_", "nestedStatements"], "postprocess": toArray(0, 2)},
-    {"name": "functionParams", "symbols": ["local_ident"], "postprocess": toArray(0)},
-    {"name": "functionParams", "symbols": ["local_ident", "_", COMMA, "_", "functionParams"], "postprocess": toArray(0, 4)},
-    {"name": "functionParamsB", "symbols": [OPENP, "_", "functionParams", "_", CLOSEP], "postprocess": nth(2)},
-    {"name": "functionParamsB", "symbols": [OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return []; }},
-    {"name": "functionStatement", "symbols": [FUNCTION, "_", "local_ident", "_", "functionParamsB", "_", "block"], "postprocess": 
+    {"name": "localIdentSet", "symbols": ["local_ident"], "postprocess": toArray(0)},
+    {"name": "localIdentSet", "symbols": ["local_ident", "_", COMMA, "_", "localIdentSet"], "postprocess": toArray(0, 4)},
+    {"name": "localIdentSetP", "symbols": [OPENP, "_", "localIdentSet", "_", CLOSEP], "postprocess": nth(2)},
+    {"name": "localIdentSetP", "symbols": [OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return []; }},
+    {"name": "localIdentSetB$ebnf$1$subexpression$1", "symbols": ["_", COMMA]},
+    {"name": "localIdentSetB$ebnf$1", "symbols": ["localIdentSetB$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "localIdentSetB$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "localIdentSetB", "symbols": [OPENB, "_", "localIdentSet", "localIdentSetB$ebnf$1", "_", CLOSEB], "postprocess": nth(2)},
+    {"name": "localIdentSetB", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return []; }},
+    {"name": "functionStatement", "symbols": [FUNCTION, "_", "local_ident", "_", "localIdentSetP", "_", "block"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
         }
         },
     {"name": "assignRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
-    {"name": "letStatement", "symbols": [LET, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
+    {"name": "assignLeftSide", "symbols": ["local_ident"], "postprocess": id},
+    {"name": "assignLeftSide", "symbols": ["localIdentSetB"], "postprocess": function(d, loc) { return { loc:loc, f:'ASSIGNMAP', v:d[0] } }},
+    {"name": "letStatement", "symbols": [LET, "_", "assignLeftSide", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'let', var:d[2], expr:d[6] }
         }
         },
-    {"name": "constStatement", "symbols": [CONST, "_", "local_ident", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
+    {"name": "constStatement", "symbols": [CONST, "_", "assignLeftSide", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'const', var:d[2], expr:d[6] }
+        }
+        },
+    {"name": "returnStatement", "symbols": [RETURN, "_", "assignRightSide"], "postprocess": 
+        function(d, loc) {
+            return { loc:loc, f:'return', expr:d[2] }
+        }
+        },
+    {"name": "returnStatement", "symbols": [RETURN, "_", SEMICOLON], "postprocess": 
+        function(d, loc) {
+            return { loc:loc, f:'return' }
         }
         },
     {"name": "baseStatement", "symbols": ["constStatement"], "postprocess": nth(0)},

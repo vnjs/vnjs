@@ -1,22 +1,33 @@
 "use strict";
 
-const fs = require('fs');
-const path = require('path');
+const Loader = require('../javascript/vnjsloader.js');
+const MachineState = require('../javascript/vnjsstate.js');
 
-const Compiler = require('../javascript/vnjscompiler.js');
 
 
 function pg() {
 
-    // Load the test script,
-    fs.readFile(path.join(__dirname, 'scripts', 'pg.nvjs'), "utf8", (err, content) => {
+    const loader = Loader();
+    const machine_state = MachineState(loader);
+
+    // Prepare the 'start.vnjs' script,
+    loader.prepare('start.vnjs', (err) => {
         if (err) {
-            console.error("Failed to load pg.nvjs");
+            console.error(err);
             process.exit(-1);
+            return;
         }
 
-        const compiler = Compiler();
-        compiler.compile(content);
+        // Call the 'run' function in 'start.vnjs'
+        const vnc_frame = machine_state.createFrame();
+        loader.call('start.vnjs', 'run', [], vnc_frame, (err) => {
+            if (err) {
+                console.error(err);
+                process.exit(-1);
+                return;
+            }
+            console.log("SCRIPT COMPLETED...");
+        });
 
     });
 
