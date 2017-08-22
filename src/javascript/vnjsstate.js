@@ -9,6 +9,11 @@ function MachineState(loader) {
 
     function Frame() {
 
+        const globals = {
+            console: console,
+        };
+
+
         const frame_stack = [];
         const context_stack = [];
 
@@ -16,10 +21,14 @@ function MachineState(loader) {
         let user_frame = {};
         let register_frame = [];
         let script_context = {};
+        let parent_a = false;
 
 
+        // Returns the current script context,
 
-
+        function getScriptContext() {
+            return script_context;
+        }
 
         // Push a new context for the execution of a function,
 
@@ -35,9 +44,10 @@ function MachineState(loader) {
         }
 
 
-        function pushBlock(varob) {
+        function pushBlock(varob, pframe_visible) {
             frame_stack.push(user_frame);
             frame_stack.push(register_frame);
+            frame_stack.push(parent_a);
             if (varob) {
                 user_frame = varob;
             }
@@ -45,18 +55,45 @@ function MachineState(loader) {
                 user_frame = {};
             }
             register_frame = [];
+            parent_a = pframe_visible;
         }
 
-        function popBlock(ret) {
+        function popBlock() {
+            parent_a = frame_stack.pop();
             register_frame = frame_stack.pop();
             user_frame = frame_stack.pop();
+        }
+
+        function popBlockRet(ret) {
+            popBlock();
             return { f:'RET', v:ret };
         }
 
+
+        function getFrameWithVar(varname) {
+            let frame = user_frame;
+            let vis = parent_a;
+            let i = frame_stack.length - 3;
+            while (!Object.prototype.hasOwnProperty.call(frame, varname)) {
+                if (vis === false) {
+                    return;
+                }
+
+                frame = frame_stack[i];
+                vis = frame_stack[i + 2];
+                i -= 3;
+            }
+            return frame;
+        }
+
+
+
         function getU(varname) {
             // Visible in user frame?
-            if (Object.prototype.hasOwnProperty.call(user_frame, varname)) {
-                return user_frame[varname];
+            const frame = getFrameWithVar(varname);
+
+            if (frame) {
+                return frame[varname];
             }
             // Check visible functions,
             else {
@@ -65,22 +102,46 @@ function MachineState(loader) {
                 if (own_function !== undefined) {
                     return own_function;
                 }
-                throw Error('Reference not found: ' + varname);
+
+                // Finally, check against globals,
+                const global_val = globals[varname];
+                if (global_val !== undefined) {
+                    return global_val;
+                }
+
+                throw Error('Reference error: ' + varname);
             }
         }
 
+        function opOnVar(varname, op) {
+            const frame = getFrameWithVar(varname);
+            if (frame) {
+                return op(frame, varname);
+            }
+            throw Error('Reference error: ' + varname);
+        }
+
         function setU(varname, val) {
-            user_frame[varname] = val;
-            return val;
+            opOnVar(varname, (frame, varname) => {
+                frame[varname] = val;
+                return val;
+            });
         }
 
         function setUConst(varname, val) {
-            // PENDING: Const checks,
-            return setU(varname, val);
+            if (!Object.prototype.hasOwnProperty.call(user_frame, varname)) {
+                user_frame[varname] = val;
+                return val;
+            }
+            throw Error('Already defined: ' + varname);
         }
 
         function setULet(varname, val) {
-            return setU(varname, val);
+            if (!Object.prototype.hasOwnProperty.call(user_frame, varname)) {
+                user_frame[varname] = val;
+                return val;
+            }
+            throw Error('Already defined: ' + varname);
         }
 
         function setR(i, val) {
@@ -97,22 +158,78 @@ function MachineState(loader) {
         }
 
 
-        function callU(func_fdecl, next_fun, args) {
-            // Resolve the next function,
-            const next_fdecl =
-                        loader.resolveFunction(script_context.script_file, next_fun);
-            return { f: 'CALL', v: func_fdecl, args, then: next_fdecl };
+        function preIncU(varname) {
+            opOnVar(varname, (frame, varname) => {
+                return ++frame[varname];
+            });
+        }
+        function preDecU(varname) {
+            opOnVar(varname, (frame, varname) => {
+                return --frame[varname];
+            });
+        }
+        function postIncU(varname) {
+            opOnVar(varname, (frame, varname) => {
+                return frame[varname]++;
+            });
+        }
+        function postDecU(varname) {
+            opOnVar(varname, (frame, varname) => {
+                return frame[varname]--;
+            });
+        }
+
+        function addU(varname, v) {
+            opOnVar(varname, (frame, varname) => {
+                return (frame[varname] += v);
+            });
+        }
+        function subU(varname, v) {
+            opOnVar(varname, (frame, varname) => {
+                return (frame[varname] -= v);
+            });
+        }
+        function multU(varname, v) {
+            opOnVar(varname, (frame, varname) => {
+                return (frame[varname] *= v);
+            });
+        }
+        function divU(varname, v) {
+            opOnVar(varname, (frame, varname) => {
+                return (frame[varname] /= v);
+            });
         }
 
 
 
+        function callU(func_fdecl, method, next_fun, args) {
+            // Resolve the next function,
+            const next_fdecl =
+                        loader.resolveFunction(script_context.script_file, next_fun);
+            return { f: 'CALL', v: func_fdecl, method, args, then: next_fdecl };
+        }
+
+
+        function gotoCall(goto_label) {
+//            const goto_fdecl =
+//                        loader.resolveFunction(script_context.script_file, goto_label);
+//            return { f: 'GOTO', v: goto_fdecl };
+            return { f: 'GOTO', v: goto_label };
+        }
+
+
+
+
         return {
+
+            getScriptContext,
 
             pushContext,
             popContext,
 
             pushBlock,
             popBlock,
+            popBlockRet,
             getU,
             setU,
             setUConst,
@@ -122,7 +239,18 @@ function MachineState(loader) {
             getR,
             clearR,
 
+            preIncU,
+            preDecU,
+            postIncU,
+            postDecU,
+
+            addU,
+            subU,
+            multU,
+            divU,
+
             callU,
+            gotoCall,
 
         };
 

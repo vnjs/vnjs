@@ -368,10 +368,13 @@ var grammar = {
     {"name": "valueOrRef", "symbols": ["nonRefs"], "postprocess": id},
     {"name": "valueOrRef", "symbols": ["allRef"], "postprocess": id},
     {"name": "dotRef", "symbols": ["allRef", "_", PERIOD, "_", "local_ident"], "postprocess": stdF('.')},
-    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } }},
+    {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[]   } }},
     {"name": "funRef", "symbols": ["allRef", "_", OPENP, "_", "expressionList", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } }},
+    {"name": "arrayRef", "symbols": ["allRef", "_", OPENS, "_", CLOSES], "postprocess": function(d, loc) { return { loc:loc, f:'arrayref', name:d[0], l:[]   } }},
+    {"name": "arrayRef", "symbols": ["allRef", "_", OPENS, "_", "expression", "_", CLOSES], "postprocess": function(d, loc) { return { loc:loc, f:'arrayref', name:d[0], l:d[4] } }},
     {"name": "allRef", "symbols": ["dotRef"], "postprocess": id},
     {"name": "allRef", "symbols": ["funRef"], "postprocess": id},
+    {"name": "allRef", "symbols": ["arrayRef"], "postprocess": id},
     {"name": "allRef", "symbols": ["parenthOp"], "postprocess": id},
     {"name": "allRef", "symbols": ["array"], "postprocess": id},
     {"name": "allRef", "symbols": ["object"], "postprocess": id},
@@ -453,7 +456,7 @@ var grammar = {
         },
     {"name": "assignRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "assignLeftSide", "symbols": ["local_ident"], "postprocess": id},
-    {"name": "assignLeftSide", "symbols": ["localIdentSetB"], "postprocess": function(d, loc) { return { loc:loc, f:'ASSIGNMAP', v:d[0] } }},
+    {"name": "assignLeftSide", "symbols": ["localIdentSetB"], "postprocess": function(d, loc) { return { loc:loc, f:'ASSIGNMAP', l:d[0] } }},
     {"name": "letStatement", "symbols": [LET, "_", "assignLeftSide", "_", ASSIGN, "_", "assignRightSide"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'let', var:d[2], expr:d[6] }

@@ -20,13 +20,22 @@ function pg() {
 
         // Call the 'run' function in 'start.vnjs'
         const vnc_frame = machine_state.createFrame();
-        loader.call('start.vnjs', 'run', [], vnc_frame, (err) => {
+
+        let start_time = (new Date()).getTime();
+        
+        loader.call('start.vnjs', 'run', [], vnc_frame, (err, ret) => {
             if (err) {
                 console.error(err);
                 process.exit(-1);
                 return;
             }
             console.log("SCRIPT COMPLETED...");
+            console.log("RETURNED: ", ret);
+
+
+            let end_time = (new Date()).getTime();
+            console.log("TOOK: %s", ((end_time - start_time) / 1000));
+
         });
 
     });

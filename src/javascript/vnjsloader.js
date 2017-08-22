@@ -108,85 +108,117 @@ function Loader() {
 
 
 
+    function getFunction(func_decl) {
+        const script_name = func_decl.getScriptFile();
+        const function_name = func_decl.getRawFunctionName();
+        const script_descriptor = scripts[script_name];
+        if (script_descriptor === undefined) {
+            throw Error('Script not found: ' + script_name);
+        }
+        const ufun = script_descriptor.compiled_functions[function_name];
+        if (ufun === undefined) {
+            throw Error('Function not found: ' + function_name);
+        }
+        return ufun;
+    }
+
+
 
     // Calls the given function in the script,
 
     function call(script_file, function_name, args, vnc_frame, callback) {
         // Fetch the descriptor,
-//        const script_descriptor = scripts[script_file];
-//        if (script_descriptor === undefined) {
-//            return callback(Error('Script not found: ' + script_file));
-//        }
-
-//        // Get the user function,
-//        const ufun = script_descriptor.compiled_functions['u_' + function_name];
-//        if (ufun === undefined) {
-//            return callback(Error('Not found: ' + function_name));
-//        }
-
-        // Set the exit callback,
-        vnc_frame.exit_callback = callback;
 
         let cmd = {
             f: 'CALL',
             args,
-            v: resolveUserFunction(script_file, function_name)
+            v: resolveUserFunction(script_file, function_name),
+            method: null,
+            then: callback
         };
 
-        while (true) {
+        try {
 
-            const nf = cmd.f;
-            if (nf === 'CALL') {
-                // Function decl to call,
-                const v = cmd.v;
-                // Next fun
-                const then = cmd.then;
-                // Call Arguments,
-                const args = cmd.args;
+            while (true) {
 
-                const call_script = v.getScriptFile();
-                const script_descriptor = scripts[call_script];
-                if (script_descriptor === undefined) {
-                    return callback(Error('Script not found: ' + call_script));
+                const nf = cmd.f;
+                if (nf === 'CALL') {
+                    // Function decl to call,
+                    const v = cmd.v;
+                    // Method if applicable (or null),
+                    const method = cmd.method;
+                    // Next fun
+                    const then = cmd.then;
+                    // Call Arguments,
+                    const args = cmd.args;
+
+                    let to_call = v;
+                    if (method !== null) {
+                        to_call = v[method];
+                    }
+
+                    // If 'v' is a JavaScript function,
+                    if (to_call instanceof Function) {
+                        // Push context,
+                        vnc_frame.pushContext(undefined, then);
+//                        console.log("GOTO (.js): ", v);
+                        const ret = to_call.apply(v, args);
+                        cmd = { f: 'RET', v: ret };
+                    }
+                    else {
+                        const ufun = getFunction(to_call);
+                        const call_script = to_call.getScriptFile();
+                        vnc_frame.pushContext(call_script, then);
+
+                        // Call the function,
+//                        console.log("GOTO: ", v.getRawFunctionName());
+                        cmd = ufun.apply(v, [vnc_frame].concat(args));
+                    }
                 }
-                const ufun = script_descriptor.compiled_functions[
-                                    v.getRawFunctionName()];
-                if (ufun === undefined) {
-                    return callback(Error('Function not found: ' + function_name));
+
+                else if (nf === 'GOTO') {
+                    // The goto label function,
+                    let ufun;
+                    if (cmd.ufun === undefined) {
+                        const label = cmd.v;
+                        const script_context = vnc_frame.getScriptContext();
+                        ufun = getFunction(resolveFunction(
+                                        script_context.script_file, label));
+                        cmd.ufun = ufun;
+                    }
+                    else {
+                        ufun = cmd.ufun;
+                    }
+                    cmd = ufun.call(undefined, vnc_frame);
                 }
-                console.log("Calling: %s", v);
-                // Push context,
-                vnc_frame.pushContext(call_script, then);
-                // Call the function,
-                cmd = ufun.apply(undefined, [vnc_frame].concat(args));
+
+                else if (nf === 'RET') {
+                    // Return value,
+                    const ret_v = cmd.v;
+
+                    const c = vnc_frame.popContext();
+                    const call_next = c.call_next;
+
+                    // Special case handling of callback,
+                    if (call_next === callback) {
+                        return callback(undefined, ret_v);
+                    }
+
+                    const ufun = getFunction(call_next);
+
+//                    console.log("RETURNING: ", call_next.getRawFunctionName());
+                    cmd = ufun.call(undefined, vnc_frame, undefined, ret_v);
+                }
+                else {
+                    console.log(cmd);
+                    return callback(Error('Unknown command: ' + nf));
+                }
+
             }
-            else if (nf === 'RET') {
-                // Return value,
-                const ret_v = cmd.v;
 
-                const c = vnc_frame.popContext();
-                const call_next = c.call_next;
-
-                const call_script = call_next.getScriptFile();
-                const script_descriptor = scripts[call_script];
-                if (script_descriptor === undefined) {
-                    return callback(Error('Script not found: ' + call_script));
-                }
-                const ufun = script_descriptor.compiled_functions[
-                                    call_next.getRawFunctionName()];
-                if (ufun === undefined) {
-                    return callback(Error('Function not found: ' + function_name));
-                }
-
-                console.log("Returning: %s", ret_v);
-
-                cmd = ufun.apply(undefined, [vnc_frame, undefined, ret_v]);
-            }
-            else {
-                console.log(cmd);
-                return callback(Error('Unknown command: ' + nf));
-            }
-
+        }
+        catch (e) {
+            return callback(e);
         }
 
     }

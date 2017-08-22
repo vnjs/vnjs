@@ -5,14 +5,63 @@
 
 
 function test() {
-    return "This is a message returned by function \"test\"...";
+    const a = 'message';
+    return "This is a " + a + " returned by function: %s";
 }
 
+
+function makeMessage(i) {
+    return "This is number: " + i;
+}
+
+
+function mm(i) {
+    if (i > 10000) {
+        return i;
+    }
+    else if (i >= 0) {
+        const k = 0;
+        return mm(i + 1);
+    }
+}
 
 
 function run() {
     // Print test message from other function,
-    console.log(test());
+
+    return mm(0);
+
+
+    // let i = 0;
+    // while (i < 1000000) {
+    //     if (i >= 0) {
+    //         out += makeMessage(i);
+    //     }
+    //     i += 1;
+    // }
+    //
+    // return out.length;
+
+    // const out = [];
+    //
+    // let i = 0;
+    // while (i < 300) {
+    //     out.push('index ' + i);
+    //     i += 1;
+    // }
+    //
+    // let size = 0;
+    // i = 0;
+    // const len = out.length;
+    // while (i < len) {
+    //     size += out[i].length;
+    //     if (i < 10000) {
+    //         i += 1;
+    //     }
+    // }
+    //
+    // return size;
+
 }
 
 

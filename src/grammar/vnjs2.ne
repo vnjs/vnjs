@@ -372,12 +372,16 @@ valueOrRef -> nonRefs {% id %}
 dotRef -> allRef _ %PERIOD _ local_ident {% stdF('.') %}
 
 
-funRef -> allRef _ %OPENP _ %CLOSEP                   {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[] } } %}
-        | allRef _ %OPENP _ expressionList _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } } %}
+funRef -> allRef _ %OPENP _ %CLOSEP                  {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:[]   } } %}
+        | allRef _ %OPENP _ expressionList _ %CLOSEP {% function(d, loc) { return { loc:loc, f:'call', name:d[0], params:d[4] } } %}
+
+arrayRef -> allRef _ %OPENS _ %CLOSES                {% function(d, loc) { return { loc:loc, f:'arrayref', name:d[0], l:[]   } } %}
+          | allRef _ %OPENS _ expression _ %CLOSES   {% function(d, loc) { return { loc:loc, f:'arrayref', name:d[0], l:d[4] } } %}
 
 
 allRef -> dotRef {% id %}
         | funRef {% id %}
+        | arrayRef {% id %}
         | parenthOp {% id %}
         | array {% id %}
         | object {% id %}
@@ -533,7 +537,7 @@ assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}
 
 assignLeftSide -> local_ident {% id %}
                 | localIdentSetB
-        {% function(d, loc) { return { loc:loc, f:'ASSIGNMAP', v:d[0] } } %}
+        {% function(d, loc) { return { loc:loc, f:'ASSIGNMAP', l:d[0] } } %}
 
 
 letStatement -> %LET _ assignLeftSide _ %ASSIGN _ assignRightSide {%
