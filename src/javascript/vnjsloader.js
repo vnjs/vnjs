@@ -160,7 +160,7 @@ function Loader() {
                     // If 'v' is a JavaScript function,
                     if (to_call instanceof Function) {
                         // Push context,
-                        vnc_frame.pushContext(undefined, then);
+                        vnc_frame.pushContext(undefined, undefined, then);
 //                        console.log("GOTO (.js): ", v);
                         const ret = to_call.apply(v, args);
                         cmd = { f: 'RET', v: ret };
@@ -168,7 +168,8 @@ function Loader() {
                     else {
                         const ufun = getFunction(to_call);
                         const call_script = to_call.getScriptFile();
-                        vnc_frame.pushContext(call_script, then);
+                        const inner_frame = to_call.getInnerFrame();
+                        vnc_frame.pushContext(call_script, inner_frame, then);
 
                         // Call the function,
 //                        console.log("GOTO: ", v.getRawFunctionName());

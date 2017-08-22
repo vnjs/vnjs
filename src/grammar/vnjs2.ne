@@ -505,6 +505,7 @@ nestedStatement ->
                  | constStatement {% id %}
                  | whileStatement {% id %}
                  | ifStatement {% id %}
+                 | functionStatement {% id %}
                  | returnStatement {% id %}
                  | expressionStatement {% id %}
 

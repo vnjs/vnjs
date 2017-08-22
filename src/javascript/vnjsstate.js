@@ -16,12 +16,16 @@ function MachineState(loader) {
 
         const frame_stack = [];
         const context_stack = [];
+        const outer_frame_stack = [];
+        const flen_stack = [];
 
         // Current scope,
         let user_frame = {};
         let register_frame = [];
         let script_context = {};
         let parent_a = false;
+
+        let outer_frames;
 
 
         // Returns the current script context,
@@ -32,15 +36,27 @@ function MachineState(loader) {
 
         // Push a new context for the execution of a function,
 
-        function pushContext(script_file, call_next) {
+        function pushContext(script_file, inner_frame, call_next) {
             context_stack.push(script_context);
-            script_context = { script_file, call_next };
+            script_context = { script_file, inner_frame, call_next };
         }
 
         function popContext() {
             const r = script_context;
             script_context = context_stack.pop();
             return r;
+        }
+
+
+        function pushFunctionFrames() {
+            flen_stack.push(frame_stack.length);
+            outer_frame_stack.push(outer_frames);
+            outer_frames = script_context.inner_frame;
+        }
+
+        function popFunctionFrames() {
+            outer_frames = outer_frame_stack.pop();
+            return flen_stack.pop();
         }
 
 
@@ -69,6 +85,28 @@ function MachineState(loader) {
             return { f:'RET', v:ret };
         }
 
+        function popBlockFunctionRet(ret) {
+            frame_stack.length = popFunctionFrames();
+            return popBlockRet(ret);
+        }
+
+        // Returns the current frame (all currently visible frames),
+        function getInnerFrame() {
+            const out = [];
+            let frame = user_frame;
+            let vis = parent_a;
+            let i = frame_stack.length - 3;
+            while (true) {
+                out.push(frame);
+                if (vis === false || i < 0) {
+                    return out;
+                }
+
+                frame = frame_stack[i];
+                vis = frame_stack[i + 2];
+                i -= 3;
+            }
+        }
 
         function getFrameWithVar(varname) {
             let frame = user_frame;
@@ -76,6 +114,15 @@ function MachineState(loader) {
             let i = frame_stack.length - 3;
             while (!Object.prototype.hasOwnProperty.call(frame, varname)) {
                 if (vis === false) {
+                    // Check outer frames,
+                    if (outer_frames !== undefined) {
+                        for (let n = 0; n < outer_frames.length; ++n) {
+                            const frame = outer_frames[n];
+                            if (Object.prototype.hasOwnProperty.call(frame, varname)) {
+                                return frame;
+                            }
+                        }
+                    }
                     return;
                 }
 
@@ -142,6 +189,13 @@ function MachineState(loader) {
                 return val;
             }
             throw Error('Already defined: ' + varname);
+        }
+
+        function setUFun(varname, func_name) {
+            const script_file = script_context.script_file;
+            const own_function = loader.resolveFunction(
+                            script_file, func_name).frameAs(getInnerFrame());
+            setUConst(varname, own_function);
         }
 
         function setR(i, val) {
@@ -218,6 +272,23 @@ function MachineState(loader) {
         }
 
 
+        function getDebugState() {
+            return {
+                frame_stack,
+                context_stack,
+                outer_frame_stack,
+                flen_stack,
+
+                // Current scope,
+                user_frame,
+                register_frame,
+                script_context,
+                parent_a,
+
+                outer_frames,
+            };
+        }
+
 
 
         return {
@@ -227,13 +298,17 @@ function MachineState(loader) {
             pushContext,
             popContext,
 
+            pushFunctionFrames,
+
             pushBlock,
             popBlock,
             popBlockRet,
+            popBlockFunctionRet,
             getU,
             setU,
             setUConst,
             setULet,
+            setUFun,
 
             setR,
             getR,
@@ -251,6 +326,8 @@ function MachineState(loader) {
 
             callU,
             gotoCall,
+
+            getDebugState,
 
         };
 

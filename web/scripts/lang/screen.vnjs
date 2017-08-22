@@ -1,0 +1,20 @@
+
+// 'screen' system VNJS
+
+
+// Creates and returns a generic client side element.
+
+function element(style) {
+
+    const client_ele = client.createElement(style);
+
+    function animateTo(next_style, time, transform) {
+
+    }
+
+    return {
+        style,
+        animateTo
+    };
+
+}

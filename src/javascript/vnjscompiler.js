@@ -27,6 +27,8 @@ function GeneratedSource() {
 
     const local_constants = [];
 
+    let deferred_functions = [];
+
 
     function getGenVarNum() {
         return gen_var_num;
@@ -241,6 +243,19 @@ function GeneratedSource() {
         return inlined_functions;
     }
 
+    function addDeferredFunction(unique_name, stmt) {
+        deferred_functions.push({
+            unique_name,
+            stmt
+        });
+    }
+
+    function consumeDeferredFunctions() {
+        const c = deferred_functions;
+        deferred_functions = [];
+        return c;
+    }
+
     function exportFunction(func_name) {
         exported_functions.push(func_name);
     }
@@ -293,6 +308,9 @@ function GeneratedSource() {
         openFunction,
         closeFunction,
 
+        addDeferredFunction,
+        consumeDeferredFunctions,
+
         exportFunction,
 
         inlineRefs,
@@ -321,11 +339,11 @@ function Compiler() {
 
 
 
-    function funcEnter(gen_code, name, params) {
-        const uname_function = 'u_' + name.v;
-        gen_code.openFunction(uname_function);
-        gen_code.exportFunction(uname_function);
-        let out = 'function ' + uname_function + '(_vnc';
+    function funcEnter(gen_code, function_name, params) {
+//        const uname_function = 'u_' + name.v;
+        gen_code.openFunction(function_name);
+        gen_code.exportFunction(function_name);
+        let out = 'function ' + function_name + '(_vnc';
         const len = params.length;
         // Exit early,
         if (len === 0) {
@@ -333,6 +351,7 @@ function Compiler() {
             gen_code.pushLine(out);
             gen_code.addIndent();
             gen_code.pushLine('_vnc.pushBlock({}, false);');
+            gen_code.pushLine('_vnc.pushFunctionFrames();');
             return;
         }
         let fset = '_vnc.pushBlock({ ';
@@ -353,13 +372,14 @@ function Compiler() {
         gen_code.pushLine(out);
         gen_code.addIndent();
         gen_code.pushLine(fset);
+        gen_code.pushLine('_vnc.pushFunctionFrames();');
 
         return;
     }
 
 
     function funcLeave(gen_code, name) {
-        gen_code.pushReturn('return _vnc.popBlockRet()');
+        gen_code.pushReturn('return _vnc.popBlockFunctionRet()');
         gen_code.closeFunction();
         return;
     }
@@ -593,6 +613,16 @@ function Compiler() {
                 return ident + '[ ' + ref + ' ]';
             }
 
+            case ('function'): {
+
+                const name = fun.name.v;
+                const unique_ifun_name = 'i_' + name + gen_code.genFun();
+
+                gen_code.addDeferredFunction(unique_ifun_name, fun);
+                return gen_code.pushCall('_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")');
+
+            }
+
             case ('while') : {
                 // Optimized 'while' can be turned into same JavaScript code,
 
@@ -662,10 +692,10 @@ function Compiler() {
                 const return_expression = fun.expr;
                 if (return_expression) {
                     const v1 = asSourceLine(gen_code, return_expression);
-                    gen_code.pushReturn('return _vnc.popBlockRet(' + v1 + ')');
+                    gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + v1 + ')');
                 }
                 else {
-                    gen_code.pushReturn('return _vnc.popBlockRet()');
+                    gen_code.pushReturn('return _vnc.popBlockFunctionRet()');
                 }
 
                 return;
@@ -866,6 +896,17 @@ function Compiler() {
 
             }
 
+            // If it's a function, we defer processing of the function code.
+            case ('function'): {
+
+                const name = fun.name.v;
+                const unique_ifun_name = 'i_' + name + gen_code.genFun();
+
+                gen_code.addDeferredFunction(unique_ifun_name, fun);
+                return gen_code.pushCall('_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")');
+
+            }
+
             case ('if'): {
                 // This is an 'if' with a call somewhere inside it.
 
@@ -1017,10 +1058,10 @@ function Compiler() {
                 const return_expression = fun.expr;
                 if (return_expression) {
                     const v1 = processFunction(gen_code, return_expression);
-                    gen_code.pushReturn('return _vnc.popBlockRet(' + v1 + ')');
+                    gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + v1 + ')');
                 }
                 else {
-                    gen_code.pushReturn('return _vnc.popBlockRet()');
+                    gen_code.pushReturn('return _vnc.popBlockFunctionRet()');
                 }
 
                 return;
@@ -1044,6 +1085,46 @@ function Compiler() {
         gen_code.pushGenVarCleanup();
 
     }
+
+    function processFunctionStmt(gen_code, func_stmt) {
+
+        const name = func_stmt.name;
+        const params = func_stmt.params;
+        const block = func_stmt.block;
+
+        // Make the declaration block,
+        const unique_fname = 'u_' + name.v;
+        funcEnter(gen_code, unique_fname, params);
+        block.forEach((stmt) => {
+            processStatement(gen_code, stmt);
+        });
+        funcLeave(gen_code, unique_fname);
+
+        // Handle deferred functions,
+        let deferred_functions = gen_code.consumeDeferredFunctions();
+        while (deferred_functions.length > 0) {
+
+            deferred_functions.forEach((def_fun) => {
+                const { unique_name, stmt } = def_fun;
+
+                const params = stmt.params;
+                const block = stmt.block;
+
+                // Make the declaration block,
+                funcEnter(gen_code, unique_name, params);
+                block.forEach((stmt) => {
+                    processStatement(gen_code, stmt);
+                });
+                funcLeave(gen_code, unique_name);
+
+            });
+            deferred_functions = gen_code.consumeDeferredFunctions();
+
+        }
+
+    }
+
+
 
 
     function markUpTree(node) {
@@ -1113,25 +1194,12 @@ function Compiler() {
         // Compile each of the functions,
         pob.members.forEach((func) => {
 
-            const name = func.name;
-            const params = func.params;
-            const block = func.block;
-
-            // Make the declaration block,
-            funcEnter(gen_code, name, params);
-
-            block.forEach((stmt) => {
-
-                processStatement(gen_code, stmt);
-
-            });
-
-            funcLeave(gen_code, name);
-
-            // Inline code that can be inlined,
-            gen_code.inlineRefs();
+            processFunctionStmt(gen_code, func);
 
         });
+
+        // Inline code that can be inlined,
+        gen_code.inlineRefs();
 
         // Return the generated code,
         return gen_code;

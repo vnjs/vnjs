@@ -436,6 +436,7 @@ var grammar = {
     {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["ifStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["functionStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["returnStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
     {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(0)},

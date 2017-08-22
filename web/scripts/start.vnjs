@@ -15,52 +15,50 @@ function makeMessage(i) {
 }
 
 
-function mm(i) {
-    if (i > 10000) {
-        return i;
+function makein(myval) {
+    function inn() {
+        console.log('Hey, this is an inner class: %s', myval);
     }
-    else if (i >= 0) {
-        const k = 0;
-        return mm(i + 1);
+
+    return inn;
+}
+
+
+function mm(myval) {
+
+    function getVal() {
+        return myval;
     }
+
+    function setVal(val) {
+        myval = val;
+    }
+
+    function checkPoo() {
+        return true;
+    }
+
+    return {
+        getVal,
+        setVal
+    };
+
 }
 
 
 function run() {
-    // Print test message from other function,
 
-    return mm(0);
+//    console.log("HELLO WORLD!");
 
+    const m = mm('hello');
+    console.log("Result of m.getVal() = %s", m.getVal());
+    m.setVal('goodbye');
+    console.log("Result of m.getVal() = %s", m.getVal());
 
-    // let i = 0;
-    // while (i < 1000000) {
-    //     if (i >= 0) {
-    //         out += makeMessage(i);
-    //     }
-    //     i += 1;
-    // }
-    //
-    // return out.length;
+    const nf = makein('Hey, we make a function with some variables...');
+    nf();
 
-    // const out = [];
-    //
-    // let i = 0;
-    // while (i < 300) {
-    //     out.push('index ' + i);
-    //     i += 1;
-    // }
-    //
-    // let size = 0;
-    // i = 0;
-    // const len = out.length;
-    // while (i < len) {
-    //     size += out[i].length;
-    //     if (i < 10000) {
-    //         i += 1;
-    //     }
-    // }
-    //
-    // return size;
+    return nf;
 
 }
 
