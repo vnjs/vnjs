@@ -10,7 +10,15 @@ function MachineState(loader) {
     function Frame() {
 
         const globals = {
+            parseInt: parseInt,
+            parseFloat: parseFloat,
+            isNaN: isNaN,
+            isFinite: isFinite,
+            String: String,
+            Number: Number,
             console: console,
+            JSON: JSON,
+            Math: Math,
         };
 
 
@@ -191,11 +199,15 @@ function MachineState(loader) {
             throw Error('Already defined: ' + varname);
         }
 
-        function setUFun(varname, func_name) {
+        function asUFun(func_name) {
             const script_file = script_context.script_file;
             const own_function = loader.resolveFunction(
                             script_file, func_name).frameAs(getInnerFrame());
-            setUConst(varname, own_function);
+            return own_function;
+        }
+
+        function setUFun(varname, func_name) {
+            return setUConst(varname, asUFun(func_name));
         }
 
         function setR(i, val) {
@@ -309,6 +321,7 @@ function MachineState(loader) {
             setUConst,
             setULet,
             setUFun,
+            asUFun,
 
             setR,
             getR,

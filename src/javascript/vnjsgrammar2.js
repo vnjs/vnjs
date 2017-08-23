@@ -155,6 +155,8 @@ function $(o) {
     var NEQ =  isSymbol('!=');
     var NNEQ = isSymbol('!==');
 
+    var ARROWFUNC = isSymbol('=>');
+
     var PLUS =  isSymbol('+');
     var MINUS = isSymbol('-');
     var MULT =  isSymbol('*');
@@ -316,7 +318,10 @@ var grammar = {
     {"name": "object$ebnf$1", "symbols": ["object$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "object$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "object", "symbols": [OPENB, "_", "assignList", "object$ebnf$1", "_", CLOSEB], "postprocess": function(d, loc) { return { loc:loc, f:'{', l:d[2] } }},
-    {"name": "parenthOp", "symbols": [OPENP, "_", "binaryOp", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'(', l:d[2] } }},
+    {"name": "parenthOp", "symbols": [OPENP, "_", "declareOp", "_", CLOSEP], "postprocess": function(d, loc) { return { loc:loc, f:'(', l:d[2] } }},
+    {"name": "declareOp", "symbols": ["functionStatement"], "postprocess": id},
+    {"name": "declareOp", "symbols": ["arrowFunctionStatement"], "postprocess": id},
+    {"name": "declareOp", "symbols": ["binaryOp"], "postprocess": id},
     {"name": "binaryOp", "symbols": ["orOp"], "postprocess": id},
     {"name": "orOp", "symbols": ["orOp", "_", "OR_TOKS", "_", "andOp"], "postprocess": stdF('||')},
     {"name": "orOp", "symbols": ["andOp"], "postprocess": id},
@@ -384,7 +389,7 @@ var grammar = {
     {"name": "nonRefs", "symbols": ["number"], "postprocess": id},
     {"name": "nonRefs", "symbols": ["nullval"], "postprocess": id},
     {"name": "nonRefs", "symbols": ["undefinedval"], "postprocess": id},
-    {"name": "expression", "symbols": ["binaryOp"], "postprocess": id},
+    {"name": "expression", "symbols": ["declareOp"], "postprocess": id},
     {"name": "local_ident", "symbols": ["identifier"], "postprocess": toLocalIdent},
     {"name": "block", "symbols": [OPENB, "_", "nestedStatements", "_", CLOSEB], "postprocess": nth(2)},
     {"name": "block", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return [] }},
@@ -430,13 +435,27 @@ var grammar = {
             return { loc:loc, f:'while', expr:d[4], block:d[8] };
         }
         },
-    {"name": "expressionStatement", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "expressionStatement$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
+    {"name": "expressionStatement$ebnf$1", "symbols": ["expressionStatement$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "expressionStatement$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "expressionStatement", "symbols": ["expression", "expressionStatement$ebnf$1"], "postprocess": 
+        function(d, loc, reject) {
+            var f = d[0];
+            if (d[1] === null) {
+                // Only permitted no semicolon if expression is a function
+                // declaration.
+                if (f.f !== 'function') {
+                    return reject;
+                }
+            }
+            return f;
+        }
+        },
     {"name": "nestedStatement", "symbols": ["assignment"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["letStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["ifStatement"], "postprocess": id},
-    {"name": "nestedStatement", "symbols": ["functionStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["returnStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
     {"name": "nestedStatements", "symbols": ["nestedStatement"], "postprocess": toArray(0)},
@@ -450,9 +469,31 @@ var grammar = {
     {"name": "localIdentSetB$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "localIdentSetB", "symbols": [OPENB, "_", "localIdentSet", "localIdentSetB$ebnf$1", "_", CLOSEB], "postprocess": nth(2)},
     {"name": "localIdentSetB", "symbols": [OPENB, "_", CLOSEB], "postprocess": function(d, loc) { return []; }},
-    {"name": "functionStatement", "symbols": [FUNCTION, "_", "local_ident", "_", "localIdentSetP", "_", "block"], "postprocess": 
+    {"name": "functionStatement$ebnf$1$subexpression$1", "symbols": ["_", "local_ident"]},
+    {"name": "functionStatement$ebnf$1", "symbols": ["functionStatement$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "functionStatement$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "functionStatement", "symbols": [FUNCTION, "functionStatement$ebnf$1", "_", "localIdentSetP", "_", "block"], "postprocess": 
         function(d, loc) {
-            return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
+            if (d[1] !== null) {
+                return { loc:loc, f:'function', name:d[1][1], params:d[3], block:d[5] }
+            }
+            // Anonymous function declaration,
+            return { loc:loc, f:'function', params:d[3], block:d[5] }
+        }
+        },
+    {"name": "arrowrhs", "symbols": ["block"], "postprocess": id},
+    {"name": "arrowrhs", "symbols": ["expression"], "postprocess": 
+        function(d, loc, reject) {
+            var expr = d[0];
+            if (expr.f === '{') {
+                return reject;
+            }
+            return expr;
+        }
+        },
+    {"name": "arrowFunctionStatement", "symbols": ["localIdentSetP", "_", ARROWFUNC, "_", "arrowrhs"], "postprocess": 
+        function(d, loc) {
+            return { loc:loc, f:'function', params:d[0], block:d[4] }
         }
         },
     {"name": "assignRightSide", "symbols": ["expression", "_", SEMICOLON], "postprocess": nth(0)},

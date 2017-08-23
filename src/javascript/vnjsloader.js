@@ -100,7 +100,7 @@ function Loader() {
             // Store it,
             scripts[script_file] = script_descriptor;
 
-            console.log(scripts);
+//            console.log(scripts);
 
             return callback();
         });

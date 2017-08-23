@@ -141,6 +141,8 @@
     var NEQ =  isSymbol('!=');
     var NNEQ = isSymbol('!==');
 
+    var ARROWFUNC = isSymbol('=>');
+
     var PLUS =  isSymbol('+');
     var MINUS = isSymbol('-');
     var MULT =  isSymbol('*');
@@ -303,7 +305,12 @@ object -> %OPENB _ %CLOSEB
                     {% function(d, loc) { return { loc:loc, f:'{', l:d[2] } } %}
 
 
-parenthOp -> %OPENP _ binaryOp _ %CLOSEP  {% function(d, loc) { return { loc:loc, f:'(', l:d[2] } } %}
+parenthOp -> %OPENP _ declareOp _ %CLOSEP
+                    {% function(d, loc) { return { loc:loc, f:'(', l:d[2] } } %}
+
+declareOp -> functionStatement {% id %}
+           | arrowFunctionStatement {% id %}
+           | binaryOp {% id %}
 
 binaryOp -> orOp {% id %}
 
@@ -406,7 +413,7 @@ nonRefs -> number {% id %}
 
 
 
-expression -> binaryOp {% id %}
+expression -> declareOp {% id %}
 
 
 # ---------------
@@ -495,7 +502,20 @@ whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block
 
 
 
-expressionStatement -> expression _ %SEMICOLON {% nth(0) %}
+expressionStatement -> expression ( _ %SEMICOLON ):?
+{%
+    function(d, loc, reject) {
+        var f = d[0];
+        if (d[1] === null) {
+            // Only permitted no semicolon if expression is a function
+            // declaration.
+            if (f.f !== 'function') {
+                return reject;
+            }
+        }
+        return f;
+    }
+%}
 
 
 
@@ -505,7 +525,6 @@ nestedStatement ->
                  | constStatement {% id %}
                  | whileStatement {% id %}
                  | ifStatement {% id %}
-                 | functionStatement {% id %}
                  | returnStatement {% id %}
                  | expressionStatement {% id %}
 
@@ -524,14 +543,39 @@ localIdentSetB -> %OPENB _ localIdentSet ( _ %COMMA ):? _ %CLOSEB {% nth(2) %}
                 | %OPENB _ %CLOSEB {% function(d, loc) { return []; } %}
 
 
-functionStatement -> %FUNCTION _ local_ident
+functionStatement -> %FUNCTION ( _ local_ident ):?
                      _ localIdentSetP
                      _ block
 {%
     function(d, loc) {
-        return { loc:loc, f:'function', name:d[2], params:d[4], block:d[6] }
+        if (d[1] !== null) {
+            return { loc:loc, f:'function', name:d[1][1], params:d[3], block:d[5] }
+        }
+        // Anonymous function declaration,
+        return { loc:loc, f:'function', params:d[3], block:d[5] }
     }
 %}
+
+arrowrhs -> block      {% id %}
+          | expression
+{%
+    function(d, loc, reject) {
+        var expr = d[0];
+        if (expr.f === '{') {
+            return reject;
+        }
+        return expr;
+    }
+%}
+
+arrowFunctionStatement -> localIdentSetP _ %ARROWFUNC _ arrowrhs
+{%
+        function(d, loc) {
+            return { loc:loc, f:'function', params:d[0], block:d[4] }
+        }
+%}
+
+
 
 
 assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}

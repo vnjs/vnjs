@@ -16,11 +16,14 @@ function makeMessage(i) {
 
 
 function makein(myval) {
-    function inn() {
-        console.log('Hey, this is an inner class: %s', myval);
-    }
-
-    return inn;
+    return function() {
+        if (true) {
+            console.log('Hey, this is an inner class: %s', myval);
+        }
+        else {
+            console.log("Hmmm...");
+        }
+    };
 }
 
 
@@ -34,15 +37,38 @@ function mm(myval) {
         myval = val;
     }
 
-    function checkPoo() {
-        return true;
-    }
-
     return {
         getVal,
         setVal
     };
 
+}
+
+
+function array(arr) {
+
+    function forEach(cb) {
+        let i = 0;
+        const len = arr.length;
+        while (i < len) {
+            cb(arr[i], i);
+            i += 1;
+        }
+    }
+
+    function copyToArr(cl, out) {
+        let i = 0;
+        const len = arr.length;
+        while (i < len) {
+            out.push(cl(arr[i], i));
+            i += 1;
+        }
+    }
+
+    return {
+        forEach,
+        copyToArr
+    };
 }
 
 
@@ -55,10 +81,37 @@ function run() {
     m.setVal('goodbye');
     console.log("Result of m.getVal() = %s", m.getVal());
 
-    const nf = makein('Hey, we make a function with some variables...');
+    const nf = makein('Hey, we made a function with some inner variables...');
     nf();
 
-    return nf;
+    const marr = [ 'man', 'bot', 'singed' ];
+
+    let i = 0;
+    while (i < 100) {
+        array(marr).forEach((v, i) => {
+//            console.log("marr[%s]: %s = %s", i, v, marr[i]);
+        });
+        marr.push('index:' + (i + 1));
+        i += 1;
+    }
+//    console.log("FINISH ARRAY: %j", marr);
+
+    const outarr = [];
+
+    array(marr).copyToArr(
+        (v, i) => ({ val: v, zi: i }),
+        outarr
+    );
+
+    console.log(outarr);
+
+    const zoo = JSON.parse('{"a":3}');
+
+    const deg = 35;
+    const dif = [ Math.cos(deg * Math.PI / 180),
+                  Math.sin(deg * Math.PI / 180) ];
+
+    return dif;
 
 }
 

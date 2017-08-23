@@ -250,9 +250,16 @@ function Tokenizer( source_code ) {
                 case '<':
                     i += lookupToken('<=');
                     return;
-                case '=':
+                case '=': {
+                    const nc = source_code.charAt(n + 1);
+                    if (nc === '>') {
+                        pushToken('s', '=>');
+                        i += 2;
+                        return;
+                    }
                     i += lookupToken('===');
                     return;
+                }
                 case '!':
                     i += lookupToken('!==');
                     return;

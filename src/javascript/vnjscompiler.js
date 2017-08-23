@@ -615,11 +615,23 @@ function Compiler() {
 
             case ('function'): {
 
-                const name = fun.name.v;
-                const unique_ifun_name = 'i_' + name + gen_code.genFun();
-
+                let unique_ifun_name;
+                let name;
+                if (fun.name === undefined) {
+                    // Anonymous function,
+                    unique_ifun_name = 'ai_anon' + gen_code.genFun();
+                }
+                else {
+                    name = fun.name.v;
+                    unique_ifun_name = 'i_' + name + gen_code.genFun();
+                }
                 gen_code.addDeferredFunction(unique_ifun_name, fun);
-                return gen_code.pushCall('_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")');
+                if (is_statement === true && name !== undefined) {
+                    return '_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")';
+                }
+                else {
+                    return '_vnc.asUFun("' + unique_ifun_name + '")';
+                }
 
             }
 
@@ -693,6 +705,7 @@ function Compiler() {
                 if (return_expression) {
                     const v1 = asSourceLine(gen_code, return_expression);
                     gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + v1 + ')');
+                    gen_code.pushGenVarCleanup();
                 }
                 else {
                     gen_code.pushReturn('return _vnc.popBlockFunctionRet()');
@@ -899,11 +912,23 @@ function Compiler() {
             // If it's a function, we defer processing of the function code.
             case ('function'): {
 
-                const name = fun.name.v;
-                const unique_ifun_name = 'i_' + name + gen_code.genFun();
-
+                let unique_ifun_name;
+                let name;
+                if (fun.name === undefined) {
+                    // Anonymous function,
+                    unique_ifun_name = 'ai_anon' + gen_code.genFun();
+                }
+                else {
+                    name = fun.name.v;
+                    unique_ifun_name = 'i_' + name + gen_code.genFun();
+                }
                 gen_code.addDeferredFunction(unique_ifun_name, fun);
-                return gen_code.pushCall('_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")');
+                if (is_statement === true && name !== undefined) {
+                    return linePush('_vnc.setUFun("' + name + '", "' + unique_ifun_name + '")');
+                }
+                else {
+                    return linePush('_vnc.asUFun("' + unique_ifun_name + '")');
+                }
 
             }
 
@@ -1016,7 +1041,6 @@ function Compiler() {
                 gen_code.exportFunction(loop_f);
                 gen_code.pushLine('function ' + loop_f + '(_vnc) {');
                 gen_code.addIndent();
-                gen_code.pushLine('_vnc.pushBlock({}, true);');
 
                 const cev = processFunction(gen_code, continue_condition);
                 const nf = 'endloop_' + gen_code.genFun();
@@ -1036,6 +1060,8 @@ function Compiler() {
                     gen_code.pushGenVarCleanup(cleared);
                 }
 
+                gen_code.pushLine('_vnc.pushBlock({}, true);');
+
                 block.forEach((stmt) => {
                     processStatement(gen_code, stmt);
                 });
@@ -1049,7 +1075,7 @@ function Compiler() {
                 gen_code.exportFunction(nf);
                 gen_code.pushLine('function ' + nf + '(_vnc) {');
                 gen_code.addIndent();
-                gen_code.pushLine('_vnc.popBlock();');
+//                gen_code.pushLine('_vnc.popBlock();');
 
                 return;
             }
@@ -1059,6 +1085,7 @@ function Compiler() {
                 if (return_expression) {
                     const v1 = processFunction(gen_code, return_expression);
                     gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + v1 + ')');
+                    gen_code.pushGenVarCleanup();
                 }
                 else {
                     gen_code.pushReturn('return _vnc.popBlockFunctionRet()');
@@ -1112,9 +1139,16 @@ function Compiler() {
 
                 // Make the declaration block,
                 funcEnter(gen_code, unique_name, params);
-                block.forEach((stmt) => {
-                    processStatement(gen_code, stmt);
-                });
+                if (Array.isArray(block)) {
+                    block.forEach((stmt) => {
+                        processStatement(gen_code, stmt);
+                    });
+                }
+                else {
+                    const code = processFunction(gen_code, block);
+                    gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + code + ')');
+                    gen_code.pushGenVarCleanup();
+                }
                 funcLeave(gen_code, unique_name);
 
             });
@@ -1133,7 +1167,6 @@ function Compiler() {
             node.forEach((n) => {
                 markUpTree(n);
                 if (has_call_map.has(n)) {
-//                if (n.has_call === true) {
                     node_has_call = true;
                 }
             });
@@ -1146,16 +1179,17 @@ function Compiler() {
                 if (k !== 'f' && k !== 'v' && k !== 'loc') {
                     markUpTree(node[k]);
                     if (has_call_map.has(node[k])) {
-//                    if (node[k].has_call === true) {
                         node_has_call = true;
                     }
                 }
+            }
+            if (node.f === 'function') {
+                node_has_call = false;
             }
         }
         if (node_has_call) {
             has_call_map.set(node, '');
         }
-//        node.has_call = node_has_call;
     }
 
 
