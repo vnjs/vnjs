@@ -143,10 +143,11 @@
 
     var ARROWFUNC = isSymbol('=>');
 
-    var PLUS =  isSymbol('+');
-    var MINUS = isSymbol('-');
-    var MULT =  isSymbol('*');
-    var DIV =   isSymbol('/');
+    var PLUS =   isSymbol('+');
+    var MINUS =  isSymbol('-');
+    var MULT =   isSymbol('*');
+    var DIV =    isSymbol('/');
+    var REMAIN = isSymbol('%');
 
     var PLUSEQ =  isSymbol('+=');
     var MINUSEQ = isSymbol('-=');
@@ -263,6 +264,24 @@ AND_TOKS -> %ANDSYM {% toNull %}
             return { loc:loc, f:ftype, l:d[0], r:d[4] };
         }
     }
+
+    function debugId() {
+        return function(d, loc, reject) {
+            console.log("  DBG => ", d[0]);
+            return d[0];
+        }
+    }
+
+    function assignF() {
+        return function(d, loc, reject) {
+            var l = d[0];
+            if (l.f === '{' || l.f === '[') {
+                return reject;
+            }
+            return { loc:loc, f:'=', l:l, r:d[4] };
+        }
+    }
+
 %}
 
 
@@ -310,31 +329,33 @@ parenthOp -> %OPENP _ declareOp _ %CLOSEP
 
 declareOp -> functionStatement {% id %}
            | arrowFunctionStatement {% id %}
-           | binaryOp {% id %}
+           | manipOp {% id %}
 
-binaryOp -> orOp {% id %}
+manipOp -> manipOp _ %PLUSEQ _ orOp     {% stdF('+=') %}
+         | manipOp _ %MINUSEQ _ orOp    {% stdF('-=') %}
+         | manipOp _ %MULTEQ _ orOp     {% stdF('*=') %}
+         | manipOp _ %DIVEQ _ orOp      {% stdF('/=') %}
+         | manipOp _ %ASSIGN _ orOp     {% assignF() %}
+         | destructure _ %ASSIGN _ orOp {% stdF('=') %}
+         | orOp {% id %}
 
 orOp -> orOp _ OR_TOKS _ andOp {% stdF('||') %}
       | andOp {% id %}
 
-andOp -> andOp _ AND_TOKS _ compareOp {% stdF('&&') %}
-       | compareOp {% id %}
+andOp -> andOp _ AND_TOKS _ eqcompareOp {% stdF('&&') %}
+       | eqcompareOp {% id %}
 
-compareOp -> compareOp _ %LT _ manipOp   {% stdF('<') %}
-           | compareOp _ %GT _ manipOp   {% stdF('>') %}
-           | compareOp _ %LTE _ manipOp  {% stdF('<=') %}
-           | compareOp _ %GTE _ manipOp  {% stdF('>=') %}
-           | compareOp _ %EQ _ manipOp   {% stdF('==') %}
-           | compareOp _ %EEQ _ manipOp  {% stdF('===') %}
-           | compareOp _ %NEQ _ manipOp  {% stdF('!=') %}
-           | compareOp _ %NNEQ _ manipOp {% stdF('!==') %}
-           | manipOp {% id %}
+eqcompareOp -> eqcompareOp _ %EQ _ vcompareOp   {% stdF('==') %}
+             | eqcompareOp _ %EEQ _ vcompareOp  {% stdF('===') %}
+             | eqcompareOp _ %NEQ _ vcompareOp  {% stdF('!=') %}
+             | eqcompareOp _ %NNEQ _ vcompareOp {% stdF('!==') %}
+             | vcompareOp {% id %}
 
-manipOp -> manipOp _ %PLUSEQ _ additionOp  {% stdF('+=') %}
-         | manipOp _ %MINUSEQ _ additionOp {% stdF('-=') %}
-         | manipOp _ %MULTEQ _ additionOp  {% stdF('*=') %}
-         | manipOp _ %DIVEQ _ additionOp   {% stdF('/=') %}
-         | additionOp {% id %}
+vcompareOp -> vcompareOp _ %LT _ additionOp   {% stdF('<') %}
+            | vcompareOp _ %GT _ additionOp   {% stdF('>') %}
+            | vcompareOp _ %LTE _ additionOp  {% stdF('<=') %}
+            | vcompareOp _ %GTE _ additionOp  {% stdF('>=') %}
+            | additionOp {% id %}
 
 additionOp -> additionOp _ %PLUS _ multOp   {% stdF('+') %}
             | additionOp _ %MINUS _ multOp  {% stdF('-') %}
@@ -342,6 +363,7 @@ additionOp -> additionOp _ %PLUS _ multOp   {% stdF('+') %}
 
 multOp -> multOp _ %MULT _ unaryOp    {% stdF('*') %}
         | multOp _ %DIV _ unaryOp     {% stdF('/') %}
+        | multOp _ %REMAIN _ unaryOp  {% stdF('%') %}
         | unaryOp {% id %}
 
 unaryOp -> %NOT _ unaryOp       {% function(d, loc) { return { loc:loc, f:'!u', l:d[2] } } %}
@@ -363,11 +385,11 @@ unaryOp -> %NOT _ unaryOp       {% function(d, loc) { return { loc:loc, f:'!u', 
         return { loc:loc, f:'+u', l:d[1] }
     }
 %}
+         | %PLUSPLUS _ unaryOp    {% function(d, loc) { return { loc:loc, f:'++u', l:d[2] } } %}
+         | %MINUSMINUS _ unaryOp  {% function(d, loc) { return { loc:loc, f:'--u', l:d[2] } } %}
          | prefPostOp {% id %}
 
-prefPostOp -> %PLUSPLUS _ prefPostOp    {% function(d, loc) { return { loc:loc, f:'++u', l:d[2] } } %}
-            | prefPostOp _ %PLUSPLUS    {% function(d, loc) { return { loc:loc, f:'u++', l:d[0] } } %}
-            | %MINUSMINUS _ prefPostOp  {% function(d, loc) { return { loc:loc, f:'--u', l:d[2] } } %}
+prefPostOp -> prefPostOp _ %PLUSPLUS    {% function(d, loc) { return { loc:loc, f:'u++', l:d[0] } } %}
             | prefPostOp _ %MINUSMINUS  {% function(d, loc) { return { loc:loc, f:'u--', l:d[0] } } %}
             | valueOrRef {% id %}
 
@@ -447,13 +469,6 @@ assignRef -> dotRef      {% id %}
            | local_ident {% id %}
 
 
-assignment -> assignRef _ %ASSIGN _ expression _ %SEMICOLON
-{%
-    function(d, loc) {
-        return { loc:loc, f:'=', l:d[0], r:d[4] }
-    }
-%}
-
 elseblock -> %ELSE _ block
 {%
     function(d, loc) {
@@ -497,9 +512,6 @@ whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block
 
 
 
-#commaArgSet -> expression {% toArray(0) %}
-#             | expression _ %COMMA _ commaArgSet {% toArray(0, 4) %}
-
 
 
 expressionStatement -> expression ( _ %SEMICOLON ):?
@@ -520,8 +532,7 @@ expressionStatement -> expression ( _ %SEMICOLON ):?
 
 
 nestedStatement ->
-                   assignment {% id %}
-                 | letStatement {% id %}
+                   letStatement {% id %}
                  | constStatement {% id %}
                  | whileStatement {% id %}
                  | ifStatement {% id %}
@@ -532,19 +543,33 @@ nestedStatements -> nestedStatement {% toArray(0) %}
                   | nestedStatement _ nestedStatements
                                 {% toArray(0, 2) %}
 
+destructure -> localIdentSetB
+        {% function(d, loc) { return { loc:loc, f:'DESTRUCTOBJ', l:d[0] } } %}
+             | localIdentSetS
+        {% function(d, loc) { return { loc:loc, f:'DESTRUCTARRAY', l:d[0] } } %}
+
+
+identOrDestructure -> local_ident  {% id %}
+                    | destructure  {% id %}
+
+
+funcIdentSet -> identOrDestructure {% toArray(0) %}
+              | identOrDestructure _ %COMMA _ funcIdentSet {% toArray(0, 4) %}
+
+funcParamSet -> %OPENP _ funcIdentSet _ %CLOSEP {% nth(2) %}
+              | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
 
 localIdentSet -> local_ident {% toArray(0) %}
                | local_ident _ %COMMA _ localIdentSet {% toArray(0, 4) %}
 
-localIdentSetP -> %OPENP _ localIdentSet _ %CLOSEP {% nth(2) %}
-                | %OPENP _ %CLOSEP {% function(d, loc) { return []; } %}
-
 localIdentSetB -> %OPENB _ localIdentSet ( _ %COMMA ):? _ %CLOSEB {% nth(2) %}
                 | %OPENB _ %CLOSEB {% function(d, loc) { return []; } %}
 
+localIdentSetS -> %OPENS _ localIdentSet ( _ %COMMA ):? _ %CLOSES {% nth(2) %}
+                | %OPENS _ %CLOSES {% function(d, loc) { return []; } %}
 
 functionStatement -> %FUNCTION ( _ local_ident ):?
-                     _ localIdentSetP
+                     _ funcParamSet
                      _ block
 {%
     function(d, loc) {
@@ -568,7 +593,7 @@ arrowrhs -> block      {% id %}
     }
 %}
 
-arrowFunctionStatement -> localIdentSetP _ %ARROWFUNC _ arrowrhs
+arrowFunctionStatement -> funcParamSet _ %ARROWFUNC _ arrowrhs
 {%
         function(d, loc) {
             return { loc:loc, f:'function', params:d[0], block:d[4] }
@@ -578,28 +603,28 @@ arrowFunctionStatement -> localIdentSetP _ %ARROWFUNC _ arrowrhs
 
 
 
-assignRightSide -> expression _ %SEMICOLON   {% nth(0) %}
+assignRightSide -> expression  {% nth(0) %}
 
-assignLeftSide -> local_ident {% id %}
-                | localIdentSetB
-        {% function(d, loc) { return { loc:loc, f:'ASSIGNMAP', l:d[0] } } %}
-
-
-letStatement -> %LET _ assignLeftSide _ %ASSIGN _ assignRightSide {%
+assignOp -> identOrDestructure _ %ASSIGN _ assignRightSide {%
     function(d, loc) {
-        return { loc:loc, f:'let', var:d[2], expr:d[6] }
+        return { loc:loc, f:'=', l:d[0], r:d[4] }
+    }
+%}
+
+letStatement -> %LET _ assignOp _ %SEMICOLON {%
+    function(d, loc) {
+        return { loc:loc, f:'let', l:d[2] }
+    }
+%}
+
+constStatement -> %CONST _ assignOp _ %SEMICOLON {%
+    function(d, loc) {
+        return { loc:loc, f:'const', l:d[2] }
     }
 %}
 
 
-constStatement -> %CONST _ assignLeftSide _ %ASSIGN _ assignRightSide {%
-    function(d, loc) {
-        return { loc:loc, f:'const', var:d[2], expr:d[6] }
-    }
-%}
-
-
-returnStatement -> %RETURN _ assignRightSide
+returnStatement -> %RETURN _ expression _ %SEMICOLON
 {%
     function(d, loc) {
         return { loc:loc, f:'return', expr:d[2] }

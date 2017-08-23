@@ -108,7 +108,9 @@ function GeneratedSource() {
     }
 
     function pushCall(right_code, meta) {
-        pushLine(right_code + ';', meta);
+        if (right_code !== undefined) {
+            pushLine(right_code + ';', meta);
+        }
     }
 
     function pushReturn(right_code, meta) {
@@ -354,18 +356,51 @@ function Compiler() {
             gen_code.pushLine('_vnc.pushFunctionFrames();');
             return;
         }
+
+        const raw_params = [];
+        for (let i = 0; i < len; ++i) {
+            const param_e = params[i];
+            const f = param_e.f;
+            let pvar;
+            if (f === 'IDENT') {
+                pvar = '___' + param_e.v;
+                raw_params.push(param_e.v);
+                raw_params.push(pvar);
+            }
+            else if (f === 'DESTRUCTOBJ') {
+                pvar = '_d' + i;
+                const m = param_e.l;
+                for (let n = 0; n < m.length; ++n) {
+                    const nvar = m[n].v;
+                    raw_params.push(nvar);
+                    raw_params.push(pvar + '["' + nvar + '"]');
+                }
+            }
+            else if (f === 'DESTRUCTARRAY') {
+                pvar = '_d' + i;
+                const m = param_e.l;
+                for (let n = 0; n < m.length; ++n) {
+                    const nvar = m[n].v;
+                    raw_params.push(nvar);
+                    raw_params.push(pvar + '[' + n + ']');
+                }
+            }
+            else {
+                throw Error('Unknown parameter production: ' + f);
+            }
+            out += ', ' + pvar;
+        }
+
         let fset = '_vnc.pushBlock({ ';
         let first = true;
-        for (let i = 0; i < len; ++i) {
+        for (let i = 0; i < raw_params.length; i += 2) {
             if (!first) {
                 fset += ', ';
             }
-            const pvar = params[i].v;
-            out += ', ___' + pvar;
-            fset += pvar + ':___' + pvar;
+            fset += raw_params[i] + ':' + raw_params[i + 1];
             first = false;
         }
-//        out += !first ? ', cb' : 'cb';
+
         out += ') {';
         fset += ' }, false);';
 
@@ -462,15 +497,15 @@ function Compiler() {
     }
 
     function assignStmt(gen_code, fun, resolver, func_call) {
-        const varr = fun.var;
-        const expr = fun.expr;
+        const varr = fun.l;
+        const expr = fun.r;
 
         const rhs = resolver(gen_code, expr);
 
         if (varr.f === 'IDENT') {
             return gen_code.pushCall(func_call + '("' + varr.v + '", ' + rhs + ')');
         }
-        else if (varr.f === 'ASSIGNMAP') {
+        else if (varr.f === 'DESTRUCTOBJ') {
             const list = varr.l;
             const len = list.length;
             for (let i = 0; i < len; ++i) {
@@ -479,11 +514,63 @@ function Compiler() {
             }
             return;
         }
+        else if (varr.f === 'DESTRUCTARRAY') {
+            const list = varr.l;
+            const len = list.length;
+            for (let i = 0; i < len; ++i) {
+                const item = list[i].v;
+                gen_code.pushCall(func_call + '("' + item + '", ' + rhs + '[' + i + '])');
+            }
+            return;
+        }
         else {
             throw Error('Unknown assign type: ' + varr.f);
         }
 
     }
+
+    function assignOp(gen_code, fun, resolver, is_statement) {
+        const l = fun.l;
+        const r = fun.r;
+
+        const v2 = resolver(gen_code, r);
+
+        if (l.f === 'IDENT') {
+            return '_vnc.setU("' + l.v + '", ' + v2 + ')';
+        }
+        else if (l.f === '.') {
+            const v1 = resolver(gen_code, l.l);
+            return v1 + '.' + l.r.v + ' = ' + v2;
+        }
+        else if (l.f === 'DESTRUCTOBJ') {
+            const list = l.l;
+            const len = list.length;
+            for (let i = 0; i < len; ++i) {
+                const item = list[i].v;
+                gen_code.pushCall('_vnc.setU("' + item + '", ' + v2 + '.' + item + ')');
+            }
+            if (is_statement === true) {
+                return;
+            }
+            return v2;
+        }
+        else if (l.f === 'DESTRUCTARRAY') {
+            const list = l.l;
+            const len = list.length;
+            for (let i = 0; i < len; ++i) {
+                const item = list[i].v;
+                gen_code.pushCall('_vnc.setU("' + item + '", ' + v2 + '[' + i + '])');
+            }
+            if (is_statement === true) {
+                return;
+            }
+            return v2;
+        }
+        else {
+            throw Error("Invalid lhs: " + l.f);
+        }
+    }
+
 
 
 
@@ -569,31 +656,15 @@ function Compiler() {
             case ('u--'):
                 return unaryManipOp(gen_code, fun, asSourceLine, '_vnc.postDecU');
 
-            case ('='): {
-                const l = fun.l;
-                const r = fun.r;
-
-                const v2 = asSourceLine(gen_code, r);
-
-                if (l.f === 'IDENT') {
-                    return '_vnc.setU("' + l.v + '", ' + v2 + ')';
-                }
-                else if (l.f === '.') {
-                    const v1 = asSourceLine(gen_code, l.l);
-                    return v1 + '.' + l.r.v + ' = ' + v2;
-                }
-                else {
-                    throw Error();
-                }
-
-            }
+            case ('='):
+                return assignOp(gen_code, fun, asSourceLine, is_statement);
 
             case ('const'):
                 return assignStmt(
-                            gen_code, fun, asSourceLine, '_vnc.setUConst');
+                            gen_code, fun.l, asSourceLine, '_vnc.setUConst');
             case ('let'):
                 return assignStmt(
-                            gen_code, fun, asSourceLine, '_vnc.setULet');
+                            gen_code, fun.l, asSourceLine, '_vnc.setULet');
 
             case ('IDENT'):
             case ('NUMBER'):
@@ -809,31 +880,15 @@ function Compiler() {
                 return linePush(manipulatorOp(
                             gen_code, fun, processFunction, '_vnc.divU'));
 
-            case ('='): {
-                const l = fun.l;
-                const r = fun.r;
-
-                const v2 = processFunction(gen_code, r);
-
-                if (l.f === 'IDENT') {
-                    return gen_code.pushCall('_vnc.setU("' + l.v + '", ' + v2 + ')');
-                }
-                else if (l.f === '.') {
-                    const v1 = processFunction(gen_code, l.l);
-                    return gen_code.pushCall(v1 + '.' + l.r.v + ' = ' + v2);
-                }
-                else {
-                    throw Error();
-                }
-
-            }
+            case ('='):
+                return linePush(assignOp(gen_code, fun, processFunction, is_statement));
 
             case ('const'):
                 return assignStmt(
-                            gen_code, fun, processFunction, '_vnc.setUConst');
+                            gen_code, fun.l, processFunction, '_vnc.setUConst');
             case ('let'):
                 return assignStmt(
-                            gen_code, fun, processFunction, '_vnc.setULet');
+                            gen_code, fun.l, processFunction, '_vnc.setULet');
 
             case ('IDENT'):
             case ('NUMBER'):

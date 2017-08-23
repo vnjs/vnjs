@@ -3,9 +3,9 @@
 
 
 
-
 function test() {
-    const a = 'message';
+    let b = 0;
+    const a = b += 9;
     return "This is a " + a + " returned by function: %s";
 }
 
@@ -15,10 +15,10 @@ function makeMessage(i) {
 }
 
 
-function makein(myval) {
-    return function() {
+function makein( [ text ] ) {
+    return () => {
         if (true) {
-            console.log('Hey, this is an inner class: %s', myval);
+            console.log('Hey, this is an inner class: %s', text);
         }
         else {
             console.log("Hmmm...");
@@ -81,13 +81,15 @@ function run() {
     m.setVal('goodbye');
     console.log("Result of m.getVal() = %s", m.getVal());
 
-    const nf = makein('Hey, we made a function with some inner variables...');
+    const nf = makein([
+        'Hey, we made a function with some inner variables...'
+    ]);
     nf();
 
     const marr = [ 'man', 'bot', 'singed' ];
 
     let i = 0;
-    while (i < 100) {
+    while (i < 25) {
         array(marr).forEach((v, i) => {
 //            console.log("marr[%s]: %s = %s", i, v, marr[i]);
         });
@@ -144,9 +146,6 @@ function main() {
 
     // Transaction animation for wilma,
     wilma.animateTo({ x: 400 }, 0.5, constants.linearTransform);
-
-    // Print test message from other function,
-    console.log(test());
 
     // Wait until interaction interrupts this,
     wait();
