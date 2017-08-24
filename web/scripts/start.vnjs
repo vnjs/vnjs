@@ -1,12 +1,14 @@
 
-/* global screen, constants, wait */
+/* global screen, constants, wait, object */
 
 
 
 function test() {
-    let b = 0;
-    const a = b += 9;
-    return "This is a " + a + " returned by function: %s";
+    let i = 0;
+    for (let n = 0; n < 50; ++n) {
+        i += n;
+    }
+    return "This is a " + i + " returned by function: %s";
 }
 
 
@@ -88,23 +90,27 @@ function run() {
 
     const marr = [ 'man', 'bot', 'singed' ];
 
-    let i = 0;
-    while (i < 25) {
+    let tout = '';
+
+    for (let i = 0; i < 25; i += 1) {
         array(marr).forEach((v, i) => {
-//            console.log("marr[%s]: %s = %s", i, v, marr[i]);
+            tout += util.format("marr[%s]: %s = %s", i, v, marr[i]);
+            tout += '\n';
         });
         marr.push('index:' + (i + 1));
-        i += 1;
     }
 //    console.log("FINISH ARRAY: %j", marr);
 
     const outarr = [];
 
     array(marr).copyToArr(
-        (v, i) => ({ val: v, zi: i }),
+        (v, i) => {
+            return ({ val: v, zi: i });
+        },
         outarr
     );
 
+    console.log(tout);
     console.log(outarr);
 
     const zoo = JSON.parse('{"a":3}');
@@ -112,6 +118,14 @@ function run() {
     const deg = 35;
     const dif = [ Math.cos(deg * Math.PI / 180),
                   Math.sin(deg * Math.PI / 180) ];
+
+    const obj1 = { foo: 'hello', bar: 'world' };
+    object({ addition:4, subtraction:'nope!' }).copyTo(obj1);
+
+
+    console.log(obj1);
+    console.log(Object.keys(obj1));
+
 
     return dif;
 
@@ -145,7 +159,7 @@ function main() {
     addElement(wilma);
 
     // Transaction animation for wilma,
-    wilma.animateTo({ x: 400 }, 0.5, constants.linearTransform);
+    wilma.animate({ x: 400 }, 0.5, constants.linearTransform);
 
     // Wait until interaction interrupts this,
     wait();

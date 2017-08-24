@@ -20,14 +20,14 @@
         'let':-1,
         'var':-1,
         'define':-1,
-        'and':-1,
-        'or':-1,
         'goto':-1,
         'preserve':-1,
         'evaluate':-1,
         'from':-1,
         'install':-1,
         'function':-1,
+        'for':-1,
+        'in':-1,
         'while':-1,
         'return':-1,
     };
@@ -169,11 +169,10 @@
     var IF =        isWord('if');
     var ELSE =      isWord('else');
     var IMPORT =    isWord('import');
+    var FOR =       isWord('for');
+    var IN =        isWord('in');
     var FROM =      isWord('from');
     var GOTO =      isWord('goto');
-    var DEFINE =    isWord('define');
-    var AND =       isWord('and');
-    var OR =        isWord('or');
     var FUNCTION =  isWord('function');
     var WHILE =     isWord('while');
     var RETURN =    isWord('return');
@@ -250,9 +249,7 @@ identifier -> %IDENT_CONST {% function(d) { return d[0][1] } %}
 
 
 OR_TOKS -> %ORSYM {% toNull %}
-         | %OR    {% toNull %}
 AND_TOKS -> %ANDSYM {% toNull %}
-          | %AND    {% toNull %}
 
 
 
@@ -510,6 +507,35 @@ whileStatement -> %WHILE _ %OPENP _ expression _ %CLOSEP _ block
 %}
 
 
+forInitOp -> expression {% id %}
+           | letStatement {% id %}
+           | constStatement {% id %}
+
+
+forStatement -> %FOR _ %OPENP ( _ forInitOp):? _ %SEMICOLON
+                              ( _ expression):? _ %SEMICOLON
+                              ( _ expression):? _ %CLOSEP _ block
+{%
+    function(d, loc) {
+        var n = { loc:loc, f:'for', block:d[13] };
+        if (d[3] !== null) {
+            n.init = d[3][1];
+        }
+        if (d[6] !== null) {
+            n.cond = d[6][1];
+        }
+        if (d[9] !== null) {
+            n.iter = d[9][1];
+        }
+        return n;
+    }
+%}
+#              | %FOR _ %OPENP _ local_ident _ %IN _ expression _ %CLOSEP _ block
+#{%
+#    function(d, loc) {
+#        return { loc:loc, f:'forin', l:d[4], r:d[8], block:d[12] };
+#    }
+#%}
 
 
 
@@ -532,9 +558,10 @@ expressionStatement -> expression ( _ %SEMICOLON ):?
 
 
 nestedStatement ->
-                   letStatement {% id %}
-                 | constStatement {% id %}
+                   letStatement _ %SEMICOLON {% nth(0) %}
+                 | constStatement _ %SEMICOLON {% nth(0) %}
                  | whileStatement {% id %}
+                 | forStatement {% id %}
                  | ifStatement {% id %}
                  | returnStatement {% id %}
                  | expressionStatement {% id %}
@@ -611,13 +638,13 @@ assignOp -> identOrDestructure _ %ASSIGN _ assignRightSide {%
     }
 %}
 
-letStatement -> %LET _ assignOp _ %SEMICOLON {%
+letStatement -> %LET _ assignOp {%
     function(d, loc) {
         return { loc:loc, f:'let', l:d[2] }
     }
 %}
 
-constStatement -> %CONST _ assignOp _ %SEMICOLON {%
+constStatement -> %CONST _ assignOp {%
     function(d, loc) {
         return { loc:loc, f:'const', l:d[2] }
     }

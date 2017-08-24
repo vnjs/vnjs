@@ -34,14 +34,14 @@ function $(o) {
         'let':-1,
         'var':-1,
         'define':-1,
-        'and':-1,
-        'or':-1,
         'goto':-1,
         'preserve':-1,
         'evaluate':-1,
         'from':-1,
         'install':-1,
         'function':-1,
+        'for':-1,
+        'in':-1,
         'while':-1,
         'return':-1,
     };
@@ -183,11 +183,10 @@ function $(o) {
     var IF =        isWord('if');
     var ELSE =      isWord('else');
     var IMPORT =    isWord('import');
+    var FOR =       isWord('for');
+    var IN =        isWord('in');
     var FROM =      isWord('from');
     var GOTO =      isWord('goto');
-    var DEFINE =    isWord('define');
-    var AND =       isWord('and');
-    var OR =        isWord('or');
     var FUNCTION =  isWord('function');
     var WHILE =     isWord('while');
     var RETURN =    isWord('return');
@@ -306,9 +305,7 @@ var grammar = {
     {"name": "undefinedval", "symbols": [UNDEFINED], "postprocess": function(d, loc) { return { loc:loc, f:'UNDEFINED', v:undefined } }},
     {"name": "identifier", "symbols": [IDENT_CONST], "postprocess": function(d) { return d[0][1] }},
     {"name": "OR_TOKS", "symbols": [ORSYM], "postprocess": toNull},
-    {"name": "OR_TOKS", "symbols": [OR], "postprocess": toNull},
     {"name": "AND_TOKS", "symbols": [ANDSYM], "postprocess": toNull},
-    {"name": "AND_TOKS", "symbols": [AND], "postprocess": toNull},
     {"name": "expressionList", "symbols": ["expression"], "postprocess": toArray(0)},
     {"name": "expressionList", "symbols": ["expression", "_", COMMA, "_", "expressionList"], "postprocess": toArray(0, 4)},
     {"name": "inassign", "symbols": ["local_ident", "_", COLON, "_", "expression"], "postprocess": 
@@ -452,6 +449,33 @@ var grammar = {
             return { loc:loc, f:'while', expr:d[4], block:d[8] };
         }
         },
+    {"name": "forInitOp", "symbols": ["expression"], "postprocess": id},
+    {"name": "forInitOp", "symbols": ["letStatement"], "postprocess": id},
+    {"name": "forInitOp", "symbols": ["constStatement"], "postprocess": id},
+    {"name": "forStatement$ebnf$1$subexpression$1", "symbols": ["_", "forInitOp"]},
+    {"name": "forStatement$ebnf$1", "symbols": ["forStatement$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "forStatement$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "forStatement$ebnf$2$subexpression$1", "symbols": ["_", "expression"]},
+    {"name": "forStatement$ebnf$2", "symbols": ["forStatement$ebnf$2$subexpression$1"], "postprocess": id},
+    {"name": "forStatement$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "forStatement$ebnf$3$subexpression$1", "symbols": ["_", "expression"]},
+    {"name": "forStatement$ebnf$3", "symbols": ["forStatement$ebnf$3$subexpression$1"], "postprocess": id},
+    {"name": "forStatement$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "forStatement", "symbols": [FOR, "_", OPENP, "forStatement$ebnf$1", "_", SEMICOLON, "forStatement$ebnf$2", "_", SEMICOLON, "forStatement$ebnf$3", "_", CLOSEP, "_", "block"], "postprocess": 
+        function(d, loc) {
+            var n = { loc:loc, f:'for', block:d[13] };
+            if (d[3] !== null) {
+                n.init = d[3][1];
+            }
+            if (d[6] !== null) {
+                n.cond = d[6][1];
+            }
+            if (d[9] !== null) {
+                n.iter = d[9][1];
+            }
+            return n;
+        }
+        },
     {"name": "expressionStatement$ebnf$1$subexpression$1", "symbols": ["_", SEMICOLON]},
     {"name": "expressionStatement$ebnf$1", "symbols": ["expressionStatement$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "expressionStatement$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
@@ -468,9 +492,10 @@ var grammar = {
             return f;
         }
         },
-    {"name": "nestedStatement", "symbols": ["letStatement"], "postprocess": id},
-    {"name": "nestedStatement", "symbols": ["constStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["letStatement", "_", SEMICOLON], "postprocess": nth(0)},
+    {"name": "nestedStatement", "symbols": ["constStatement", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "nestedStatement", "symbols": ["whileStatement"], "postprocess": id},
+    {"name": "nestedStatement", "symbols": ["forStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["ifStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["returnStatement"], "postprocess": id},
     {"name": "nestedStatement", "symbols": ["expressionStatement"], "postprocess": id},
@@ -529,12 +554,12 @@ var grammar = {
             return { loc:loc, f:'=', l:d[0], r:d[4] }
         }
         },
-    {"name": "letStatement", "symbols": [LET, "_", "assignOp", "_", SEMICOLON], "postprocess": 
+    {"name": "letStatement", "symbols": [LET, "_", "assignOp"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'let', l:d[2] }
         }
         },
-    {"name": "constStatement", "symbols": [CONST, "_", "assignOp", "_", SEMICOLON], "postprocess": 
+    {"name": "constStatement", "symbols": [CONST, "_", "assignOp"], "postprocess": 
         function(d, loc) {
             return { loc:loc, f:'const', l:d[2] }
         }

@@ -2,6 +2,23 @@
 
 const VNJSFunction = require('./vnjsfunction.js');
 
+const util = require('util');
+
+
+function object(obj) {
+    function copyTo(to_obj) {
+        for (let key in obj) {
+            to_obj[key] = obj[key];
+        }
+    }
+    return {
+        copyTo
+    };
+}
+
+
+
+
 function MachineState(loader) {
 
 
@@ -19,6 +36,9 @@ function MachineState(loader) {
             console: console,
             JSON: JSON,
             Math: Math,
+            util: util,
+            object: object,
+            Object: Object,
         };
 
 

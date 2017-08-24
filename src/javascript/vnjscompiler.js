@@ -726,6 +726,39 @@ function Compiler() {
                 return;
             }
 
+            case ('for') : {
+
+                const init = fun.init;
+                const cond = fun.cond;
+                const iter = fun.iter;
+                const block = fun.block;
+
+                let iev = asSourceLine(gen_code, init);
+                let cev = asSourceLine(gen_code, cond);
+                let itev = asSourceLine(gen_code, iter);
+                if (iev === undefined) {
+                    iev = '';
+                }
+                if (cev === undefined) {
+                    cev = '';
+                }
+                if (itev === undefined) {
+                    itev = '';
+                }
+                gen_code.pushLine('for (' + iev + ';' + cev + ';' + itev + ') {');
+                gen_code.addIndent();
+                gen_code.pushLine('_vnc.pushBlock({}, true);');
+                block.forEach((stmt) => {
+                    processStatement(gen_code, stmt);
+                });
+                gen_code.pushLine('_vnc.popBlock();');
+                gen_code.subIndent();
+                gen_code.pushLine('}');
+
+                return;
+
+            }
+
             case ('if') : {
                 // Optimized 'if' can be turned into same JavaScript code,
 
@@ -790,6 +823,72 @@ function Compiler() {
                 console.error(fun);
                 throw Error("Unknown function type: " + fun.f);
         }
+
+    }
+
+
+
+    function loopProduction(gen_code, initial, condition, iteration, block) {
+
+        // Process initial loop setup,
+        if (initial !== undefined) {
+            const icode = processFunction(gen_code, initial);
+            gen_code.pushCall(icode);
+        }
+
+        const loop_f = 'loop_' + gen_code.genFun();
+        gen_code.pushLocalConstant(
+                    'const c_' + loop_f + ' = ' +
+                    '{ f:"GOTO", v: "' + loop_f + '" };');
+
+        gen_code.pushGenVarCleanup();
+        gen_code.pushReturn('return c_' + loop_f);
+        gen_code.closeFunction();
+
+        gen_code.openFunction(loop_f);
+        gen_code.exportFunction(loop_f);
+        gen_code.pushLine('function ' + loop_f + '(_vnc) {');
+        gen_code.addIndent();
+
+        const cev = processFunction(gen_code, condition);
+        const nf = 'endloop_' + gen_code.genFun();
+        gen_code.pushLocalConstant(
+                    'const c_' + nf + ' = ' +
+                    '{ f:"GOTO", v: "' + nf + '" };');
+
+        gen_code.pushLine('if (!(' + cev + ')) {');
+        gen_code.addIndent();
+        const cleared = gen_code.pushGenVarCleanup();
+        gen_code.pushReturn('return c_' + nf,
+                            { call_to: nf });
+        gen_code.subIndent();
+        gen_code.pushLine('}');
+
+        if (cleared.length > 0) {
+            gen_code.pushGenVarCleanup(cleared);
+        }
+
+        gen_code.pushLine('_vnc.pushBlock({}, true);');
+
+        block.forEach((stmt) => {
+            processStatement(gen_code, stmt);
+        });
+
+        gen_code.pushGenVarCleanup();
+
+        if (iteration !== undefined) {
+            const itercode = processFunction(gen_code, iteration);
+            gen_code.pushCall(itercode);
+        }
+
+        gen_code.pushLine('_vnc.popBlock();');
+        gen_code.pushReturn('return c_' + loop_f);
+        gen_code.closeFunction();
+
+        gen_code.openFunction(nf);
+        gen_code.exportFunction(nf);
+        gen_code.pushLine('function ' + nf + '(_vnc) {');
+        gen_code.addIndent();
 
     }
 
@@ -1080,59 +1179,22 @@ function Compiler() {
                 // This is a 'while' with a call inside it, so it needs to be
                 // turned into a recursive call.
 
-                const continue_condition = fun.expr;
+                const cond = fun.expr;
                 const block = fun.block;
 
-                const loop_f = 'loop_' + gen_code.genFun();
-                gen_code.pushLocalConstant(
-                            'const c_' + loop_f + ' = ' +
-                            '{ f:"GOTO", v: "' + loop_f + '" };');
+                return loopProduction(gen_code, undefined, cond, undefined, block);
 
-                gen_code.pushGenVarCleanup();
-                gen_code.pushReturn('return c_' + loop_f);
-                gen_code.closeFunction();
+            }
 
-                gen_code.openFunction(loop_f);
-                gen_code.exportFunction(loop_f);
-                gen_code.pushLine('function ' + loop_f + '(_vnc) {');
-                gen_code.addIndent();
+            case ('for'): {
 
-                const cev = processFunction(gen_code, continue_condition);
-                const nf = 'endloop_' + gen_code.genFun();
-                gen_code.pushLocalConstant(
-                            'const c_' + nf + ' = ' +
-                            '{ f:"GOTO", v: "' + nf + '" };');
+                const init = fun.init;
+                const cond = fun.cond;
+                const iter = fun.iter;
+                const block = fun.block;
 
-                gen_code.pushLine('if (!(' + cev + ')) {');
-                gen_code.addIndent();
-                const cleared = gen_code.pushGenVarCleanup();
-                gen_code.pushReturn('return c_' + nf,
-                                    { call_to: nf });
-                gen_code.subIndent();
-                gen_code.pushLine('}');
+                return loopProduction(gen_code, init, cond, iter, block);
 
-                if (cleared.length > 0) {
-                    gen_code.pushGenVarCleanup(cleared);
-                }
-
-                gen_code.pushLine('_vnc.pushBlock({}, true);');
-
-                block.forEach((stmt) => {
-                    processStatement(gen_code, stmt);
-                });
-
-                gen_code.pushGenVarCleanup();
-                gen_code.pushLine('_vnc.popBlock();');
-                gen_code.pushReturn('return c_' + loop_f);
-                gen_code.closeFunction();
-
-                gen_code.openFunction(nf);
-                gen_code.exportFunction(nf);
-                gen_code.pushLine('function ' + nf + '(_vnc) {');
-                gen_code.addIndent();
-//                gen_code.pushLine('_vnc.popBlock();');
-
-                return;
             }
 
             case ('return'): {
