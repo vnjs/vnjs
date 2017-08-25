@@ -1,13 +1,28 @@
 "use strict";
 
+const fs = require('fs');
+const path = require('path');
+
 const Loader = require('../javascript/vnjsloader.js');
 const MachineState = require('../javascript/vnjsstate.js');
 
 
 
+function loadFile(file_name, callback) {
+    // Load from file,
+    fs.readFile(path.join('.', 'web', 'scripts', file_name), "utf8",
+                                                    (err, content) => {
+        if (err) {
+            return callback(err);
+        }
+        return callback(undefined, content);
+    });
+}
+
+
 function pg() {
 
-    const loader = Loader();
+    const loader = Loader(loadFile);
     const machine_state = MachineState(loader);
 
     // Prepare the 'start.vnjs' script,

@@ -2,8 +2,6 @@
 
 const VNJSFunction = require('./vnjsfunction.js');
 
-const util = require('util');
-
 
 function object(obj) {
     function copyTo(to_obj) {
@@ -18,6 +16,22 @@ function object(obj) {
 
 
 
+// Pre-cache all standard libraries,
+const libs = {
+    "util": () => require('./lang/util.js'),
+    "screen": () => require('./lang/screen.js'),
+    "lang": () => require('./lang/lang.js'),
+    "constants": () => require('./lang/constants.js'),
+};
+
+function vnjsRequire(lib) {
+    const req_obj = libs[lib];
+    if (req_obj !== void 0) {
+        return req_obj();
+    }
+    throw Error('Library not found: ' + lib);
+}
+
 
 function MachineState(loader) {
 
@@ -27,6 +41,7 @@ function MachineState(loader) {
     function Frame() {
 
         const globals = {
+            require: vnjsRequire,
             parseInt: parseInt,
             parseFloat: parseFloat,
             isNaN: isNaN,
@@ -36,7 +51,6 @@ function MachineState(loader) {
             console: console,
             JSON: JSON,
             Math: Math,
-            util: util,
             object: object,
             Object: Object,
         };

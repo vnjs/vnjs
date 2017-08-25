@@ -18,23 +18,22 @@ function evalInContext(js, context) {
 const base_context = {};
 
 
-function Loader() {
+function Loader(loadFile) {
 
     // Maps unique script file name to object that describes it.
 
     const scripts = {};
 
-    function loadFile(file_name, callback) {
-        // Load from file,
-        fs.readFile(path.join('.', 'web', 'scripts', file_name), "utf8",
-                                                        (err, content) => {
-            if (err) {
-                return callback(err);
-            }
-            return callback(undefined, content);
-        });
-    }
-
+    // function loadFile(file_name, callback) {
+    //     // Load from file,
+    //     fs.readFile(path.join('.', 'web', 'scripts', file_name), "utf8",
+    //                                                     (err, content) => {
+    //         if (err) {
+    //             return callback(err);
+    //         }
+    //         return callback(undefined, content);
+    //     });
+    // }
 
     function resolveFunction(script_file, func_name) {
         return scripts[script_file].vis_functions[func_name];
@@ -72,7 +71,7 @@ function Loader() {
                         generated_code.toSource() +
                         '})\n';
 
-            console.log(wrap_fun);
+//            console.log(wrap_fun);
 
             // Evaluate it,
             const execFunc = evalInContext(wrap_fun, base_context);

@@ -1,152 +1,149 @@
 
-/* global screen, constants, wait, object */
 
-
-
-function test() {
-    let i = 0;
-    for (let n = 0; n < 50; ++n) {
-        i += n;
-    }
-    return "This is a " + i + " returned by function: %s";
-}
-
-
-function makeMessage(i) {
-    return "This is number: " + i;
-}
-
-
-function makein( [ text ] ) {
-    return () => {
-        if (true) {
-            console.log('Hey, this is an inner class: %s', text);
-        }
-        else {
-            console.log("Hmmm...");
-        }
-    };
-}
-
-
-function mm(myval) {
-
-    function getVal() {
-        return myval;
-    }
-
-    function setVal(val) {
-        myval = val;
-    }
-
-    return {
-        getVal,
-        setVal
-    };
-
-}
-
-
-function array(arr) {
-
-    function forEach(cb) {
-        let i = 0;
-        const len = arr.length;
-        while (i < len) {
-            cb(arr[i], i);
-            i += 1;
-        }
-    }
-
-    function copyToArr(cl, out) {
-        let i = 0;
-        const len = arr.length;
-        while (i < len) {
-            out.push(cl(arr[i], i));
-            i += 1;
-        }
-    }
-
-    return {
-        forEach,
-        copyToArr
-    };
-}
-
-
-function run() {
-
-//    console.log("HELLO WORLD!");
-
-    const m = mm('hello');
-    console.log("Result of m.getVal() = %s", m.getVal());
-    m.setVal('goodbye');
-    console.log("Result of m.getVal() = %s", m.getVal());
-
-    const nf = makein([
-        'Hey, we made a function with some inner variables...'
-    ]);
-    nf();
-
-    const marr = [ 'man', 'bot', 'singed' ];
-
-    let tout = '';
-
-    for (let i = 0; i < 25; i += 1) {
-        array(marr).forEach((v, i) => {
-            tout += util.format("marr[%s]: %s = %s", i, v, marr[i]);
-            tout += '\n';
-        });
-        marr.push('index:' + (i + 1));
-    }
-//    console.log("FINISH ARRAY: %j", marr);
-
-    const outarr = [];
-
-    array(marr).copyToArr(
-        (v, i) => {
-            return ({ val: v, zi: i });
-        },
-        outarr
-    );
-
-    console.log(tout);
-    console.log(outarr);
-
-    const zoo = JSON.parse('{"a":3}');
-
-    const deg = 35;
-    const dif = [ Math.cos(deg * Math.PI / 180),
-                  Math.sin(deg * Math.PI / 180) ];
-
-    const obj1 = { foo: 'hello', bar: 'world' };
-    object({ addition:4, subtraction:'nope!' }).copyTo(obj1);
-
-
-    console.log(obj1);
-    console.log(Object.keys(obj1));
-
-
-    return dif;
-
-}
-
+//
+// function test() {
+//     let i = 0;
+//     for (let n = 0; n < 50; ++n) {
+//         i += n;
+//     }
+//     return "This is a " + i + " returned by function: %s";
+// }
+//
+//
+// function makeMessage(i) {
+//     return "This is number: " + i;
+// }
+//
+//
+// function makein( [ text ] ) {
+//     return () => {
+//         if (true) {
+//             console.log('Hey, this is an inner class: %s', text);
+//         }
+//         else {
+//             console.log("Hmmm...");
+//         }
+//     };
+// }
+//
+//
+// function mm(myval) {
+//
+//     function getVal() {
+//         return myval;
+//     }
+//
+//     function setVal(val) {
+//         myval = val;
+//     }
+//
+//     return {
+//         getVal,
+//         setVal
+//     };
+//
+// }
+//
+//
+// function array(arr) {
+//
+//     function forEach(cb) {
+//         let i = 0;
+//         const len = arr.length;
+//         while (i < len) {
+//             cb(arr[i], i);
+//             i += 1;
+//         }
+//     }
+//
+//     function copyToArr(cl, out) {
+//         let i = 0;
+//         const len = arr.length;
+//         while (i < len) {
+//             out.push(cl(arr[i], i));
+//             i += 1;
+//         }
+//     }
+//
+//     return {
+//         forEach,
+//         copyToArr
+//     };
+// }
+//
+//
+// function run() {
+//
+// //    console.log("HELLO WORLD!");
+//
+//     const m = mm('hello');
+//     console.log("Result of m.getVal() = %s", m.getVal());
+//     m.setVal('goodbye');
+//     console.log("Result of m.getVal() = %s", m.getVal());
+//
+//     const nf = makein([
+//         'Hey, we made a function with some inner variables...'
+//     ]);
+//     nf();
+//
+//     const marr = [ 'man', 'bot', 'singed' ];
+//
+//     let tout = '';
+//
+//     for (let i = 0; i < 25; i += 1) {
+//         array(marr).forEach((v, i) => {
+//             tout += util.format("marr[%s]: %s = %s", i, v, marr[i]);
+//             tout += '\n';
+//         });
+//         marr.push('index:' + (i + 1));
+//     }
+// //    console.log("FINISH ARRAY: %j", marr);
+//
+//     const outarr = [];
+//
+//     array(marr).copyToArr(
+//         (v, i) => {
+//             return ({ val: v, zi: i });
+//         },
+//         outarr
+//     );
+//
+//     console.log(tout);
+//     console.log(outarr);
+//
+//     const zoo = JSON.parse('{"a":3}');
+//
+//     const deg = 35;
+//     const dif = [ Math.cos(deg * Math.PI / 180),
+//                   Math.sin(deg * Math.PI / 180) ];
+//
+//     const obj1 = { foo: 'hello', bar: 'world' };
+//     object({ addition:4, subtraction:'nope!' }).copyTo(obj1);
+//
+//
+//     console.log(obj1);
+//     console.log(Object.keys(obj1));
+//
+//
+//     return dif;
+//
+// }
 
 
 // Start entry point
 
 function main() {
 
-    const {
-        addElement,
-        element,
-    } = screen;
+    const util = require('util');
+    const constants = require('constants');
+    const screen = require('screen');
+    const { wait, console } = require('lang');
 
     // Background element is automatically set to layer -100
-    addElement(constants.checkeredBackground);
+    screen.addElement(constants.checkeredBackground);
 
     // Create wilma character element,
-    const wilma = element({
+    const wilma = screen.element({
         name: 'Wilma',
         base: 'characters/test_character_wilma.png',
         layer: 1,
@@ -156,12 +153,14 @@ function main() {
     });
 
     // Add wilma,
-    addElement(wilma);
+    screen.addElement(wilma);
 
     // Transaction animation for wilma,
     wilma.animate({ x: 400 }, 0.5, constants.linearTransform);
 
     // Wait until interaction interrupts this,
     wait();
+
+    console.log(util.format('Hello %s!', wilma.getStyle().name));
 
 }
