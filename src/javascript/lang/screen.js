@@ -70,8 +70,10 @@ function checkeredElement(style) {
 }
 
 
-module.exports = {
-    addElement,
-    element,
-    checkeredElement,
+module.exports = (loader) => {
+    return {
+        addElement,
+        element,
+        checkeredElement,
+    };
 };

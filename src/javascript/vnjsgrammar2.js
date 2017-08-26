@@ -574,7 +574,7 @@ var grammar = {
             return { loc:loc, f:'return' }
         }
         },
-    {"name": "baseStatement", "symbols": ["constStatement"], "postprocess": nth(0)},
+    {"name": "baseStatement", "symbols": ["constStatement", "_", SEMICOLON], "postprocess": nth(0)},
     {"name": "baseStatement", "symbols": ["functionStatement"], "postprocess": nth(0)},
     {"name": "baseStatements$ebnf$1", "symbols": []},
     {"name": "baseStatements$ebnf$1$subexpression$1", "symbols": ["_", "baseStatement"]},

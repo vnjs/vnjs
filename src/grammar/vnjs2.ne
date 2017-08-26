@@ -667,7 +667,7 @@ returnStatement -> %RETURN _ expression _ %SEMICOLON
 
 
 # Base statements,
-baseStatement -> constStatement {% nth(0) %}
+baseStatement -> constStatement _ %SEMICOLON {% nth(0) %}
                | functionStatement {% nth(0) %}
 
 

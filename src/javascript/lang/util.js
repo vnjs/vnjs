@@ -2,6 +2,8 @@
 
 const { format } = require('util');
 
-module.exports = {
-    format
+module.exports = (loader) => {
+    return {
+        format
+    };
 };

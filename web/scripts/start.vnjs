@@ -1,6 +1,8 @@
 
+/* global requireVN */
 
-//
+
+
 // function test() {
 //     let i = 0;
 //     for (let n = 0; n < 50; ++n) {
@@ -130,14 +132,19 @@
 // }
 
 
+
+
+
+
 // Start entry point
 
 function main() {
 
     const util = require('util');
-    const constants = require('constants');
-    const screen = require('screen');
-    const { wait, console } = require('lang');
+    const { wait, debug } = require('lang');
+
+    const constants = requireVN('lang.Constants');
+    const screen = requireVN('lang.Screen');
 
     // Background element is automatically set to layer -100
     screen.addElement(constants.checkeredBackground);
@@ -161,6 +168,6 @@ function main() {
     // Wait until interaction interrupts this,
     wait();
 
-    console.log(util.format('Hello %s!', wilma.getStyle().name));
+    debug(util.format('Hello %s!', wilma.getStyle().name));
 
 }

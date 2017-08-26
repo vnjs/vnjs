@@ -6,7 +6,7 @@ const path = require('path');
 
 const Compiler = require('./vnjscompiler.js');
 const VNJSFunction = require('./vnjsfunction.js');
-
+const vn_require = require('./vnjsrequire.js');
 
 function evalInContext(js, context) {
     // Return the results of the in-line anonymous function we .call with the passed context
@@ -20,20 +20,56 @@ const base_context = {};
 
 function Loader(loadFile) {
 
+    // Constant for asynchronous callback JS functions,
+    const ASYNC_PATH = {};
+
+
+    // The returned 'loader' object,
+    const loader = {
+        waitOnCallback,
+        yieldOnCallbackError,
+        yieldOnCallback,
+
+        resolveFunction,
+        resolveUserFunction,
+
+        prepare,
+        call
+    };
+
+
     // Maps unique script file name to object that describes it.
 
     const scripts = {};
 
-    // function loadFile(file_name, callback) {
-    //     // Load from file,
-    //     fs.readFile(path.join('.', 'web', 'scripts', file_name), "utf8",
-    //                                                     (err, content) => {
-    //         if (err) {
-    //             return callback(err);
-    //         }
-    //         return callback(undefined, content);
-    //     });
-    // }
+    let exit_callback;
+
+
+
+    // Returns an object that signifies the loader should wait until a call to
+    // one of the 'yieldOnxxxx' functions is made.
+
+    function waitOnCallback(processor) {
+        const yield_to_frame = current_frame;
+        const yielder = {
+            error: (err) => yieldOnCallbackError(yield_to_frame, err),
+            return: (ret) => yieldOnCallback(yield_to_frame, ret)
+        };
+        processor(yielder);
+        return ASYNC_PATH;
+    }
+
+    function yieldOnCallbackError(vnc_frame, err) {
+
+    }
+
+    function yieldOnCallback(vnc_frame, ret) {
+        const cmd = { f: 'RET', v: ret };
+        console.log("YIELDED WITH: ", ret);
+        return processLoop(cmd, vnc_frame);
+    }
+
+
 
     function resolveFunction(script_file, func_name) {
         return scripts[script_file].vis_functions[func_name];
@@ -71,7 +107,7 @@ function Loader(loadFile) {
                         generated_code.toSource() +
                         '})\n';
 
-//            console.log(wrap_fun);
+            console.log(wrap_fun);
 
             // Evaluate it,
             const execFunc = evalInContext(wrap_fun, base_context);
@@ -101,7 +137,12 @@ function Loader(loadFile) {
 
 //            console.log(scripts);
 
-            return callback();
+            const ufunc_clone = {};
+            for (let k in user_functions) {
+                ufunc_clone[k] = user_functions[k];
+            }
+
+            return callback(undefined, user_functions);
         });
     }
 
@@ -122,21 +163,13 @@ function Loader(loadFile) {
     }
 
 
+    let current_frame;
 
-    // Calls the given function in the script,
-
-    function call(script_file, function_name, args, vnc_frame, callback) {
-        // Fetch the descriptor,
-
-        let cmd = {
-            f: 'CALL',
-            args,
-            v: resolveUserFunction(script_file, function_name),
-            method: null,
-            then: callback
-        };
+    function processLoop(cmd, vnc_frame) {
 
         try {
+
+            current_frame = vnc_frame;
 
             while (true) {
 
@@ -151,29 +184,86 @@ function Loader(loadFile) {
                     // Call Arguments,
                     const args = cmd.args;
 
+//                    console.log("v = ", v);
+//                    console.log("method = ", method);
+
                     let to_call = v;
                     if (method !== null) {
                         to_call = v[method];
                     }
 
-                    // If 'v' is a JavaScript function,
-                    if (to_call instanceof Function) {
-                        // Push context,
+//                    console.log("v = ", v);
+
+                    let call_script;
+                    try {
+                        call_script = to_call.getScriptFile();
+                    }
+                    catch (e) {
+                        console.error('v = ', v);
+                        console.error('method = ', method);
+                        console.error('to_call = ', to_call);
+                        throw e;
+                    }
+
+                    // We are calling to a required library,
+                    if (call_script.startsWith('REQ:')) {
+                        // Resolve the JS object,
+                        const libr_name = call_script.substring(4);
+                        let ufun = vn_require.resolve(
+                                    loader, libr_name,
+                                    to_call.getRawFunctionName());
+
                         vnc_frame.pushContext(undefined, undefined, then);
-//                        console.log("GOTO (.js): ", v);
-                        const ret = to_call.apply(v, args);
-                        cmd = { f: 'RET', v: ret };
+                        const ret = ufun.apply(v, args);
+                        if (ret === ASYNC_PATH) {
+                            cmd = { f: 'ASYNC:WAIT' };
+                        }
+                        else {
+                            cmd = { f: 'RET', v: ret };
+                        }
                     }
                     else {
                         const ufun = getFunction(to_call);
-                        const call_script = to_call.getScriptFile();
                         const inner_frame = to_call.getInnerFrame();
                         vnc_frame.pushContext(call_script, inner_frame, then);
-
                         // Call the function,
-//                        console.log("GOTO: ", v.getRawFunctionName());
                         cmd = ufun.apply(v, [vnc_frame].concat(args));
                     }
+
+//                     let to_call = v;
+//                     if (method !== null) {
+//                         to_call = v[method];
+//                     }
+//
+//                     // If 'v' is a JavaScript function,
+//                     if (to_call instanceof Function) {
+//                         // Push context,
+//                         vnc_frame.pushContext(undefined, undefined, then);
+//                         const ret = to_call.apply(v, args);
+//                         cmd = { f: 'RET', v: ret };
+//                     }
+//                     else {
+//                         const call_script = to_call.getScriptFile();
+//                         // If it's a library,
+//                         if (call_script.startsWith("REQ:")) {
+//                             // Resolve it here,
+//                             const libr_name = call_script.substring(4);
+//                             const ufun = vn_require.resolve(
+//                                     libr_name, to_call.getRawFunctionName());
+// //                            console.log("then = ", then);
+//                             vnc_frame.pushContext(undefined, undefined, then);
+//                             const ret = ufun.apply(v, args);
+//                             cmd = { f: 'RET', v: ret };
+//                         }
+//                         else {
+//                             const ufun = getFunction(to_call);
+//                             const inner_frame = to_call.getInnerFrame();
+//                             vnc_frame.pushContext(call_script, inner_frame, then);
+//                             // Call the function,
+//                             cmd = ufun.apply(v, [vnc_frame].concat(args));
+//                         }
+//                     }
+
                 }
 
                 else if (nf === 'GOTO') {
@@ -200,8 +290,8 @@ function Loader(loadFile) {
                     const call_next = c.call_next;
 
                     // Special case handling of callback,
-                    if (call_next === callback) {
-                        return callback(undefined, ret_v);
+                    if (call_next === exit_callback) {
+                        return exit_callback(undefined, ret_v);
                     }
 
                     const ufun = getFunction(call_next);
@@ -209,32 +299,47 @@ function Loader(loadFile) {
 //                    console.log("RETURNING: ", call_next.getRawFunctionName());
                     cmd = ufun.call(undefined, vnc_frame, undefined, ret_v);
                 }
+                else if (nf === 'ASYNC:WAIT') {
+                    return;
+                }
                 else {
                     console.log(cmd);
-                    return callback(Error('Unknown command: ' + nf));
+                    return exit_callback(Error('Unknown command: ' + nf));
                 }
 
             }
 
         }
         catch (e) {
-            return callback(e);
+            return exit_callback(e);
         }
 
     }
 
 
 
+    // Calls the given function in the script,
+
+    function call(script_file, function_name, args, vnc_frame, callback) {
+        // Fetch the descriptor,
+
+        let cmd = {
+            f: 'CALL',
+            args,
+            v: resolveUserFunction(script_file, function_name),
+            method: null,
+            then: callback
+        };
+
+        exit_callback = callback;
+
+        return processLoop(cmd, vnc_frame);
+
+    }
 
 
-    return {
 
-        resolveFunction,
-        resolveUserFunction,
-
-        prepare,
-        call
-    };
+    return loader;
 
 }
 

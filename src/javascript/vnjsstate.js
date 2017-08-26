@@ -1,36 +1,8 @@
 "use strict";
 
+// const { requireJS } = require('./vnjsrequire.js');
+
 const VNJSFunction = require('./vnjsfunction.js');
-
-
-function object(obj) {
-    function copyTo(to_obj) {
-        for (let key in obj) {
-            to_obj[key] = obj[key];
-        }
-    }
-    return {
-        copyTo
-    };
-}
-
-
-
-// Pre-cache all standard libraries,
-const libs = {
-    "util": () => require('./lang/util.js'),
-    "screen": () => require('./lang/screen.js'),
-    "lang": () => require('./lang/lang.js'),
-    "constants": () => require('./lang/constants.js'),
-};
-
-function vnjsRequire(lib) {
-    const req_obj = libs[lib];
-    if (req_obj !== void 0) {
-        return req_obj();
-    }
-    throw Error('Library not found: ' + lib);
-}
 
 
 function MachineState(loader) {
@@ -41,18 +13,19 @@ function MachineState(loader) {
     function Frame() {
 
         const globals = {
-            require: vnjsRequire,
-            parseInt: parseInt,
-            parseFloat: parseFloat,
-            isNaN: isNaN,
-            isFinite: isFinite,
-            String: String,
-            Number: Number,
-            console: console,
-            JSON: JSON,
-            Math: Math,
-            object: object,
-            Object: Object,
+            require: VNJSFunction('REQ:lang', 'requireJS'),
+            requireVN: VNJSFunction('REQ:lang', 'requireVN'),
+
+            // parseInt: requireJS(loader, 'lang').parseInt,
+            // parseFloat: requireJS(loader, 'lang').parseFloat,
+            // isNaN: requireJS(loader, 'lang').isNaN,
+            // isFinite: requireJS(loader, 'lang').isFinite,
+            // String: requireJS(loader, 'lang').String,
+            // Number: requireJS(loader, 'lang').Number,
+            // console: requireJS(loader, 'lang').console,
+            // JSON: requireJS(loader, 'lang').JSON,
+            // Math: requireJS(loader, 'lang').Math,
+            // Object: requireJS(loader, 'lang').Object,
         };
 
 
