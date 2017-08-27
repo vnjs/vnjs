@@ -2,12 +2,12 @@
 // 'Screen' system VNJS
 
 // const client = require('client');
+const { copyObject, debug } = require('lang');
 
 // Creates and returns a generic client side element.
 
 function element(style) {
 
-    const { copyObject } = require('lang');
 //    const client_ele_id = client.createElement('standard', style);
 
     // Transitions a style for this element.
@@ -38,7 +38,21 @@ function element(style) {
 }
 
 
+function checkeredElement(style) {
+    return element({
+        class: 'std/checkeredElement',
+        name: style.name,
+        layer: style.layer,
+        width: style.width,
+        height: style.height,
+        pattern_width: style.pattern_width,
+        pattern_height: style.pattern_height,
+        pattern_color1: style.pattern_color1,
+        pattern_color2: style.pattern_color2,
+    });
+}
+
+
 function addElement(ele) {
-    const { debug } = require('lang');
     debug("PENDING: addElement");
 }

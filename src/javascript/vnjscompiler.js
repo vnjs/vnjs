@@ -1230,21 +1230,8 @@ function Compiler() {
 
     }
 
-    function processFunctionStmt(gen_code, func_stmt) {
+    function processDeferredFunctions(gen_code) {
 
-        const name = func_stmt.name;
-        const params = func_stmt.params;
-        const block = func_stmt.block;
-
-        // Make the declaration block,
-        const unique_fname = 'u_' + name.v;
-        funcEnter(gen_code, unique_fname, params);
-        block.forEach((stmt) => {
-            processStatement(gen_code, stmt);
-        });
-        funcLeave(gen_code, unique_fname);
-
-        // Handle deferred functions,
         let deferred_functions = gen_code.consumeDeferredFunctions();
         while (deferred_functions.length > 0) {
 
@@ -1274,6 +1261,78 @@ function Compiler() {
         }
 
     }
+
+
+    function processFunctionStmt(gen_code, func_stmt) {
+
+        const name = func_stmt.name;
+        const params = func_stmt.params;
+        const block = func_stmt.block;
+
+        // Make the declaration block,
+        const unique_fname = 'u_' + name.v;
+        funcEnter(gen_code, unique_fname, params);
+        block.forEach((stmt) => {
+            processStatement(gen_code, stmt);
+        });
+        funcLeave(gen_code, unique_fname);
+
+        // Handle deferred functions,
+        processDeferredFunctions(gen_code);
+
+    }
+
+
+    function processConstantsFunc(gen_code, constants) {
+
+        const unique_fname = 'v_constants';
+
+        const vars = [];
+
+        constants.forEach((stmt) => {
+            // Assert
+            if (stmt.l.f !== '=') {
+                throw Error("Expecting assignment");
+            }
+
+            const left = stmt.l.l;
+            if (left.f === 'IDENT') {
+                vars.push(left.v);
+            }
+            else if (left.f === 'DESTRUCTOBJ') {
+                const name_array = left.l;
+                name_array.forEach((idnt) => {
+                    vars.push(idnt.v);
+                });
+            }
+            else {
+                throw Error('Unknown assignment type');
+            }
+        });
+
+
+        funcEnter(gen_code, unique_fname, []);
+        constants.forEach((stmt) => {
+            processStatement(gen_code, stmt);
+        });
+
+        let constants_def = '{ ';
+        vars.forEach((v, i) => {
+            if (i > 0) {
+                constants_def += ', ';
+            }
+            constants_def += (v + ': _vnc.getU("' + v + '")');
+        });
+        constants_def += ' }';
+        gen_code.pushReturn('return _vnc.popBlockFunctionRet(' + constants_def + ')');
+
+        funcLeave(gen_code, unique_fname);
+
+        // Handle deferred functions,
+        processDeferredFunctions(gen_code);
+
+    }
+
 
 
 
@@ -1342,11 +1401,15 @@ function Compiler() {
 
         let gen_code = GeneratedSource();
 
+        // Compile each of the consts,
+        processConstantsFunc(gen_code, pob.constants);
+        // pob.constants.forEach((cn) => {
+        //     processConstantStmt(gen_code, cn);
+        // });
+
         // Compile each of the functions,
         pob.members.forEach((func) => {
-
             processFunctionStmt(gen_code, func);
-
         });
 
         // Inline code that can be inlined,

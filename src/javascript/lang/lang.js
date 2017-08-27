@@ -29,7 +29,8 @@ module.exports = (loader) => {
         console.log("requireVN... loading: %s", script_file);
 
         return loader.waitOnCallback((yielder) => {
-            loader.prepare(script_file, (err, functions) => {
+            loader.prepare(loader.getCurrentFrame(),
+                                        script_file, (err, functions) => {
                 if (err !== void 0) {
                     return yielder.error(err);
                 }

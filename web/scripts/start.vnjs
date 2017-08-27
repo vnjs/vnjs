@@ -133,18 +133,16 @@
 
 
 
+const util = require('util');
+const { wait, debug } = require('lang');
 
+const constants = requireVN('lang.Constants');
+const screen = requireVN('lang.Screen');
 
 
 // Start entry point
 
 function main() {
-
-    const util = require('util');
-    const { wait, debug } = require('lang');
-
-    const constants = requireVN('lang.Constants');
-    const screen = requireVN('lang.Screen');
 
     // Background element is automatically set to layer -100
     screen.addElement(constants.checkeredBackground);

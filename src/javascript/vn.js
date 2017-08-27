@@ -106,14 +106,14 @@ function gameLaunch() {
     const loader = Loader(loadConvert);
     const machine_state = MachineState(loader);
 
-    loader.prepare('start.vnjs', (err) => {
+    // Call the 'run' function in 'start.vnjs'
+    const vnc_frame = machine_state.createFrame();
+
+    loader.prepare(vnc_frame, 'start.vnjs', (err) => {
         if (err) {
             console.error(err);
             return;
         }
-
-        // Call the 'run' function in 'start.vnjs'
-        const vnc_frame = machine_state.createFrame();
 
         let start_time = (new Date()).getTime();
 

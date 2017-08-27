@@ -26,12 +26,15 @@ function Loader(loadFile) {
 
     // The returned 'loader' object,
     const loader = {
+
+        getCurrentFrame,
+
         waitOnCallback,
         yieldOnCallbackError,
         yieldOnCallback,
 
         resolveFunction,
-        resolveUserFunction,
+        resolveScriptRef,
 
         prepare,
         call
@@ -42,15 +45,21 @@ function Loader(loadFile) {
 
     const scripts = {};
 
-    let exit_callback;
+    let exit_callbacks = [];
 
 
+
+    let current_frame;
+
+    function getCurrentFrame() {
+        return current_frame;
+    }
 
     // Returns an object that signifies the loader should wait until a call to
     // one of the 'yieldOnxxxx' functions is made.
 
     function waitOnCallback(processor) {
-        const yield_to_frame = current_frame;
+        const yield_to_frame = getCurrentFrame();
         const yielder = {
             error: (err) => yieldOnCallbackError(yield_to_frame, err),
             return: (ret) => yieldOnCallback(yield_to_frame, ret)
@@ -75,19 +84,30 @@ function Loader(loadFile) {
         return scripts[script_file].vis_functions[func_name];
     }
 
-    function resolveUserFunction(script_file, func_name) {
-        return scripts[script_file].user_functions[func_name];
+    function resolveScriptRef(script_file, ref_name) {
+        return scripts[script_file].exported_refs[ref_name];
     }
 
 
 
+    function shallowCloneObject(ob) {
+        const nob = {};
+        for (let k in ob) {
+            nob[k] = ob[k];
+        }
+        return nob;
+    }
+
+
     // Prepares a .vnjs file by compiling it and all its dependants.
 
-    function prepare(script_file, callback) {
+    function prepare(vnc_frame, script_file, callback) {
 
         // Check this script hasn't already been processed,
-        if (scripts[script_file] !== undefined) {
-            return callback();
+        const script_descriptor = scripts[script_file];
+        if (script_descriptor !== undefined) {
+            return callback(undefined,
+                    shallowCloneObject(script_descriptor.exported_refs));
         }
 
         // Load the .vnjs file content,
@@ -116,12 +136,12 @@ function Loader(loadFile) {
             const compiled_functions = execFunc();
 
             // The list of user functions,
-            const user_functions = {};
+            const exported_refs = {};
             const vis_functions = {};
             for (let fname in compiled_functions) {
                 const vnjs_function_decl = VNJSFunction(script_file, fname);
                 if (fname.startsWith('u_')) {
-                    user_functions[fname.substring(2)] = vnjs_function_decl;
+                    exported_refs[fname.substring(2)] = vnjs_function_decl;
                 }
                 vis_functions[fname] = vnjs_function_decl;
             }
@@ -129,7 +149,7 @@ function Loader(loadFile) {
             const script_descriptor = {
                 compiled_functions,
                 vis_functions,
-                user_functions
+                exported_refs
             };
 
             // Store it,
@@ -137,12 +157,34 @@ function Loader(loadFile) {
 
 //            console.log(scripts);
 
-            const ufunc_clone = {};
-            for (let k in user_functions) {
-                ufunc_clone[k] = user_functions[k];
+
+            // This is a little bit hacky. We change 'script_descriptor' after
+            // this call returns.
+
+            function handleConstants(err, ret) {
+                // Handle error,
+                if (err) {
+                    return callback(err);
+                }
+
+                // Merge return objects,
+                for (let key in ret) {
+                    exported_refs[key] = ret[key];
+                }
+
+                return callback(undefined, shallowCloneObject(exported_refs));
             }
 
-            return callback(undefined, user_functions);
+            let cmd = {
+                f: 'CALL',
+                args: [],
+                v: resolveFunction(script_file, 'v_constants'),
+                method: null,
+                then: handleConstants
+            };
+            exit_callbacks.push(handleConstants);
+            return processLoop(cmd, vnc_frame);
+
         });
     }
 
@@ -162,8 +204,6 @@ function Loader(loadFile) {
         return ufun;
     }
 
-
-    let current_frame;
 
     function processLoop(cmd, vnc_frame) {
 
@@ -256,8 +296,10 @@ function Loader(loadFile) {
                     const call_next = c.call_next;
 
                     // Special case handling of callback,
-                    if (call_next === exit_callback) {
-                        return exit_callback(undefined, ret_v);
+                    const last_callback = exit_callbacks[exit_callbacks.length - 1];
+                    if (call_next === last_callback) {
+                        exit_callbacks.pop();
+                        return last_callback(undefined, ret_v);
                     }
 
                     const ufun = getFunction(call_next);
@@ -270,14 +312,16 @@ function Loader(loadFile) {
                 }
                 else {
                     console.log(cmd);
-                    return exit_callback(Error('Unknown command: ' + nf));
+                    const last_callback = exit_callbacks.pop();
+                    return last_callback(Error('Unknown command: ' + nf));
                 }
 
             }
 
         }
         catch (e) {
-            return exit_callback(e);
+            const last_callback = exit_callbacks.pop();
+            return last_callback(e);
         }
 
     }
@@ -292,13 +336,11 @@ function Loader(loadFile) {
         let cmd = {
             f: 'CALL',
             args,
-            v: resolveUserFunction(script_file, function_name),
+            v: resolveScriptRef(script_file, function_name),
             method: null,
             then: callback
         };
-
-        exit_callback = callback;
-
+        exit_callbacks.push(callback);
         return processLoop(cmd, vnc_frame);
 
     }

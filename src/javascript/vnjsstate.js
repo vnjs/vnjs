@@ -5,6 +5,11 @@
 const VNJSFunction = require('./vnjsfunction.js');
 
 
+function isUndefined(v) {
+    return (v === void 0);
+}
+
+
 function MachineState(loader) {
 
 
@@ -130,7 +135,7 @@ function MachineState(loader) {
             while (!Object.prototype.hasOwnProperty.call(frame, varname)) {
                 if (vis === false) {
                     // Check outer frames,
-                    if (outer_frames !== undefined) {
+                    if (!isUndefined(outer_frames)) {
                         for (let n = 0; n < outer_frames.length; ++n) {
                             const frame = outer_frames[n];
                             if (Object.prototype.hasOwnProperty.call(frame, varname)) {
@@ -159,15 +164,21 @@ function MachineState(loader) {
             }
             // Check visible functions,
             else {
-                const own_function =
-                        loader.resolveUserFunction(script_context.script_file, varname);
-                if (own_function !== undefined) {
-                    return own_function;
+                const own_ref = loader.resolveScriptRef(
+                                        script_context.script_file, varname);
+                if (!isUndefined(own_ref)) {
+                    return own_ref;
                 }
+
+//                const own_function =
+//                        loader.resolveUserFunction(script_context.script_file, varname);
+//                if (own_function !== undefined) {
+//                    return own_function;
+//                }
 
                 // Finally, check against globals,
                 const global_val = globals[varname];
-                if (global_val !== undefined) {
+                if (!isUndefined(global_val)) {
                     return global_val;
                 }
 
