@@ -230,40 +230,6 @@ function Loader(loadFile) {
                         cmd = ufun.apply(v, [vnc_frame].concat(args));
                     }
 
-//                     let to_call = v;
-//                     if (method !== null) {
-//                         to_call = v[method];
-//                     }
-//
-//                     // If 'v' is a JavaScript function,
-//                     if (to_call instanceof Function) {
-//                         // Push context,
-//                         vnc_frame.pushContext(undefined, undefined, then);
-//                         const ret = to_call.apply(v, args);
-//                         cmd = { f: 'RET', v: ret };
-//                     }
-//                     else {
-//                         const call_script = to_call.getScriptFile();
-//                         // If it's a library,
-//                         if (call_script.startsWith("REQ:")) {
-//                             // Resolve it here,
-//                             const libr_name = call_script.substring(4);
-//                             const ufun = vn_require.resolve(
-//                                     libr_name, to_call.getRawFunctionName());
-// //                            console.log("then = ", then);
-//                             vnc_frame.pushContext(undefined, undefined, then);
-//                             const ret = ufun.apply(v, args);
-//                             cmd = { f: 'RET', v: ret };
-//                         }
-//                         else {
-//                             const ufun = getFunction(to_call);
-//                             const inner_frame = to_call.getInnerFrame();
-//                             vnc_frame.pushContext(call_script, inner_frame, then);
-//                             // Call the function,
-//                             cmd = ufun.apply(v, [vnc_frame].concat(args));
-//                         }
-//                     }
-
                 }
 
                 else if (nf === 'GOTO') {
