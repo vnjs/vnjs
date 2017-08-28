@@ -20,17 +20,6 @@ function MachineState(loader) {
         const globals = {
             require: VNJSFunction('REQ:lang', 'requireJS'),
             requireVN: VNJSFunction('REQ:lang', 'requireVN'),
-
-            // parseInt: requireJS(loader, 'lang').parseInt,
-            // parseFloat: requireJS(loader, 'lang').parseFloat,
-            // isNaN: requireJS(loader, 'lang').isNaN,
-            // isFinite: requireJS(loader, 'lang').isFinite,
-            // String: requireJS(loader, 'lang').String,
-            // Number: requireJS(loader, 'lang').Number,
-            // console: requireJS(loader, 'lang').console,
-            // JSON: requireJS(loader, 'lang').JSON,
-            // Math: requireJS(loader, 'lang').Math,
-            // Object: requireJS(loader, 'lang').Object,
         };
 
 

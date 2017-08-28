@@ -3,8 +3,10 @@
 /* globals document */
 
 const { loadFile, mergeConfig } = require('./utils');
+
 const Loader = require('./vnjsloader.js');
 const MachineState = require('./vnjsstate.js');
+const ScreenClient = require('./ScreenClient.js');
 
 
 
@@ -77,6 +79,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+let screen_client;
+let loader;
+let machine_state;
+
+
+
+
+function clientCommunicator(cmd, args) {
+    // Clean args object,
+    const args_json_str = JSON.stringify(args);
+    args = JSON.parse(args_json_str);
+
+    // Send command to client screen,
+    screen_client.sendCommand(cmd, args);
+
+}
+
+function serverComm(cmd, args) {
+    // Pass message into state,
+    console.log("PENDING: Handle message send...");
+    console.log(arguments);
+}
+
+
+
+
+
+
+
 // NOTE: Inline parser of script files.
 
 function gameLaunch() {
@@ -84,12 +115,12 @@ function gameLaunch() {
     // NOTE: In a client/server system this will wait listening for instruction
     //   for the server and dispatch on the messages as appropriate.
 
-//    // Load and parse the scene file,
-//    const file_set = [ 'start.vnjs' ];
-
     // Clear the DOM,
     const main_div = document.getElementById("main");
     main_div.innerHTML = '';
+
+    screen_client = ScreenClient(main_div);
+    screen_client.addServerCommunicator(serverComm);
 
     function loadConvert(file, cb) {
         return loadFile('scripts/' + file, (req) => {
@@ -102,9 +133,12 @@ function gameLaunch() {
         });
     }
 
+    const static_shared = {
+        client_comm: clientCommunicator,
+    };
 
-    const loader = Loader(loadConvert);
-    const machine_state = MachineState(loader);
+    loader = Loader(loadConvert, static_shared);
+    machine_state = MachineState(loader);
 
     // Call the 'run' function in 'start.vnjs'
     const vnc_frame = machine_state.createFrame();
@@ -115,7 +149,7 @@ function gameLaunch() {
             return;
         }
 
-        let start_time = (new Date()).getTime();
+//        let start_time = (new Date()).getTime();
 
         loader.call('start.vnjs', 'main', [], vnc_frame, (err, ret) => {
             if (err) {
@@ -125,22 +159,17 @@ function gameLaunch() {
             console.log("SCRIPT COMPLETED...");
             console.log("RETURNED: ", ret);
 
-            if (ret !== void 0 && ret.getInnerFrame) {
-                console.log("INNER FRAME: ", ret.getInnerFrame());
-            }
-
-            let end_time = (new Date()).getTime();
-            console.log("TOOK: %s", ((end_time - start_time) / 1000));
-
-            console.log(vnc_frame.getDebugState());
+//            if (ret !== void 0 && ret.getInnerFrame) {
+//                console.log("INNER FRAME: ", ret.getInnerFrame());
+//            }
+//
+//            let end_time = (new Date()).getTime();
+//            console.log("TOOK: %s", ((end_time - start_time) / 1000));
+//
+//            console.log(vnc_frame.getDebugState());
 
         });
 
     });
-
-
-
-
-
 
 }

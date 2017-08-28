@@ -17,16 +17,18 @@ function evalInContext(js, context) {
 
 const base_context = {};
 
+const OUTPUT_GENERATED_SOURCE = false;
 
-function Loader(loadFile) {
+
+function Loader(loadFile, static_shared_state) {
 
     // Constant for asynchronous callback JS functions,
     const ASYNC_PATH = {};
 
-
     // The returned 'loader' object,
     const loader = {
 
+        getStaticProperty,
         getCurrentFrame,
 
         waitOnCallback,
@@ -48,6 +50,11 @@ function Loader(loadFile) {
     let exit_callbacks = [];
 
 
+    // Returns a static shared property,
+
+    function getStaticProperty(key) {
+        return static_shared_state[key];
+    }
 
     let current_frame;
 
@@ -69,12 +76,12 @@ function Loader(loadFile) {
     }
 
     function yieldOnCallbackError(vnc_frame, err) {
-
+        console.error(err);
+        return;
     }
 
     function yieldOnCallback(vnc_frame, ret) {
         const cmd = { f: 'RET', v: ret };
-        console.log("YIELDED WITH: ", ret);
         return processLoop(cmd, vnc_frame);
     }
 
@@ -127,7 +134,9 @@ function Loader(loadFile) {
                         generated_code.toSource() +
                         '})\n';
 
-            console.log(wrap_fun);
+            if (OUTPUT_GENERATED_SOURCE) {
+                console.log(wrap_fun);
+            }
 
             // Evaluate it,
             const execFunc = evalInContext(wrap_fun, base_context);
@@ -155,9 +164,6 @@ function Loader(loadFile) {
             // Store it,
             scripts[script_file] = script_descriptor;
 
-//            console.log(scripts);
-
-
             // This is a little bit hacky. We change 'script_descriptor' after
             // this call returns.
 
@@ -175,6 +181,10 @@ function Loader(loadFile) {
                 return callback(undefined, shallowCloneObject(exported_refs));
             }
 
+            // Make a call to the 'v_constants' function. This will return an
+            // object that references all the constants we defined. This is
+            // then added to the end of 'exported_refs'.
+            // NOTE: This call may cause other libraries to be loaded.
             let cmd = {
                 f: 'CALL',
                 args: [],
@@ -224,15 +234,10 @@ function Loader(loadFile) {
                     // Call Arguments,
                     const args = cmd.args;
 
-//                    console.log("v = ", v);
-//                    console.log("method = ", method);
-
                     let to_call = v;
                     if (method !== null) {
                         to_call = v[method];
                     }
-
-//                    console.log("v = ", v);
 
                     let call_script;
                     try {
@@ -311,7 +316,7 @@ function Loader(loadFile) {
                     return;
                 }
                 else {
-                    console.log(cmd);
+                    console.error(cmd);
                     const last_callback = exit_callbacks.pop();
                     return last_callback(Error('Unknown command: ' + nf));
                 }

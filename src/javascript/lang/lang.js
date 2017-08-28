@@ -13,20 +13,17 @@ function copyObject(obj1, obj2) {
 }
 
 
-function wait() {
-    console.log("PENDING: WAIT...");
-}
-
-const debugVN = console.log;
-
-
 
 module.exports = (loader) => {
+
+    function wait() {
+        console.log("PENDING: WAIT...");
+    }
 
     function requireVN(library_name) {
         const script_file = library_name.replace('.', '/') + '.vnjs';
 
-        console.log("requireVN... loading: %s", script_file);
+//        console.log("requireVN... loading: %s", script_file);
 
         return loader.waitOnCallback((yielder) => {
             loader.prepare(loader.getCurrentFrame(),
@@ -42,12 +39,17 @@ module.exports = (loader) => {
 
     }
 
+    function requireJS(library_name) {
+        return require_vn.requireJS(loader, library_name);
+    }
+
+
     return {
         wait,
-        debug: debugVN,
+        debug: console.log,
 
         requireVN: requireVN,
-        requireJS: require_vn.requireJS,
+        requireJS: requireJS,
 
         parseInt,
         parseFloat,

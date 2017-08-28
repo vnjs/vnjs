@@ -1,24 +1,47 @@
 
 // 'Screen' system VNJS
 
-// const client = require('client');
+const client = require('client');
 const { copyObject, debug } = require('lang');
 
 // Creates and returns a generic client side element.
 
 function element(style) {
 
-//    const client_ele_id = client.createElement('standard', style);
+    let client_ele_id = null;
+
+
+
+    function pushToClient() {
+        if (client_ele_id === null) {
+            client_ele_id = client.createUniqueElementId();
+            client.pushElement(client_ele_id, style);
+        }
+    }
+
+    // If the element is added to the screen or not,
+
+    function isAdded() {
+        return (client_ele_id !== null);
+    }
 
     // Transitions a style for this element.
 
     function animate(next_style, time, transform) {
 
-//        // Send the animation command to the client element,
-//        client.sendToElement(client_ele_id, 'animate', next_style, time, transform);
+        const is_added = isAdded();
 
-        // Immediately update the current element style with the changes.
-        copyObject(next_style, style);
+        if (is_added) {
+
+            // Send the animation command to the client element,
+            client.sendToElement(client_ele_id, 'animate', next_style, time, transform);
+
+            // Immediately update the current element style with the changes.
+            copyObject(next_style, style);
+
+        }
+
+        return is_added;
 
     }
 
@@ -31,6 +54,8 @@ function element(style) {
 
     // Exported 'element' API,
     return {
+        pushToClient,
+        isAdded,
         animate,
         getStyle,
     };
@@ -54,5 +79,5 @@ function checkeredElement(style) {
 
 
 function addElement(ele) {
-    debug("PENDING: addElement");
+    ele.pushToClient();
 }
