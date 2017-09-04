@@ -86,13 +86,21 @@ let machine_state;
 
 
 
+// Handle messages from the server,
+
 function clientCommunicator(cmd, args) {
     // Clean args object,
     const args_json_str = JSON.stringify(args);
     args = JSON.parse(args_json_str);
 
-    // Send command to client screen,
-    screen_client.sendCommand(cmd, args);
+    // If it's a screen command,
+    if (cmd === 's') {
+        // Send command to client screen,
+        screen_client.sendCommand(args);
+    }
+    else {
+        throw Error('Unknown client command: ' + cmd);
+    }
 
 }
 
